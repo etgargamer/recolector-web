@@ -1,0 +1,2727 @@
+<!DOCTYPE html>
+<html lang="es" class="h-full bg-slate-50">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RecolectorBanca - Control de Lotería, Sincronización en la Nube y Seguridad</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        primary: {
+                            50: '#f0f9ff',
+                            100: '#e0f2fe',
+                            500: '#0ea5e9',
+                            600: '#0284c7',
+                            700: '#0369a1',
+                            800: '#075985',
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <!-- FontAwesome para Iconos -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <!-- Firebase SDK (Compat para compatibilidad fácil en archivo único) -->
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
+
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght=300;400;500;600;700;800;900&family=JetBrains+Mono:wght=400;600;800&display=swap');
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+        .font-mono-code {
+            font-family: 'JetBrains Mono', monospace;
+        }
+    </style>
+</head>
+<body class="h-full text-slate-800 flex flex-col antialiased bg-slate-50 relative">
+
+    <!-- OVERLAY DE LOGIN / INICIO DE SESION -->
+    <div id="loginOverlay" class="fixed inset-0 bg-slate-900/90 z-50 flex items-center justify-center p-4">
+        <div class="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6 sm:p-8 border border-slate-200">
+            <div class="text-center mb-6">
+                <div class="inline-flex items-center justify-center w-16 h-16 bg-primary-100 text-primary-800 rounded-2xl mb-3 shadow-inner">
+                    <i class="fa-solid fa-scale-balanced text-3xl"></i>
+                </div>
+                <h2 class="text-2xl font-black text-slate-900 tracking-tight">RecolectorBanca</h2>
+                <p class="text-xs text-slate-500 mt-1 font-medium">Ingresa tus credenciales para acceder al sistema</p>
+            </div>
+
+            <form id="loginForm" onsubmit="handleLogin(event); return false;" class="space-y-4">
+                <div>
+                    <label for="loginUsername" class="block text-xs font-bold text-slate-700 uppercase">Usuario</label>
+                    <div class="relative mt-1">
+                        <span class="absolute inset-y-0 left-0 flex items-center pl-3 text-slate-400">
+                            <i class="fa-solid fa-user text-sm"></i>
+                        </span>
+                        <input type="text" id="loginUsername" required placeholder="Ej: admin" class="block w-full pl-10 pr-3 py-2.5 border border-slate-300 rounded-xl text-sm font-semibold focus:ring-2 focus:ring-primary-500 focus:outline-none bg-slate-50 focus:bg-white">
+                    </div>
+                </div>
+
+                <div>
+                    <label for="loginPassword" class="block text-xs font-bold text-slate-700 uppercase">Contraseña</label>
+                    <div class="relative mt-1">
+                        <span class="absolute inset-y-0 left-0 flex items-center pl-3 text-slate-400">
+                            <i class="fa-solid fa-lock text-sm"></i>
+                        </span>
+                        <input type="password" id="loginPassword" required placeholder="••••••••" class="block w-full pl-10 pr-3 py-2.5 border border-slate-300 rounded-xl text-sm font-semibold focus:ring-2 focus:ring-primary-500 focus:outline-none bg-slate-50 focus:bg-white">
+                    </div>
+                </div>
+
+                <div id="loginError" class="hidden p-3 rounded-lg bg-rose-50 border border-rose-200 text-xs font-bold text-rose-700 text-center">
+                    Usuario o contraseña incorrectos.
+                </div>
+
+                <button type="submit" class="w-full py-3 bg-primary-600 hover:bg-primary-700 text-white font-black rounded-xl shadow-lg transition duration-200 flex items-center justify-center space-x-2">
+                    <i class="fa-solid fa-right-to-bracket"></i>
+                    <span>Iniciar Sesión</span>
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <!-- HEADER DE LA APLICACION -->
+    <header class="bg-primary-800 text-white shadow-md sticky top-0 z-40">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+            <div class="flex items-center space-x-3">
+                <div class="bg-white text-primary-800 p-2 rounded-lg shadow-inner">
+                    <i class="fa-solid fa-scale-balanced text-xl"></i>
+                </div>
+                <div>
+                    <h1 class="text-lg font-extrabold tracking-tight">RecolectorBanca</h1>
+                    <p class="text-xs text-primary-200">Control de Lotería, Roles y Nube</p>
+                </div>
+            </div>
+            
+            <div class="flex items-center space-x-3">
+                <div id="userProfileWidget" class="hidden flex items-center space-x-2 bg-primary-700/80 px-3 py-1.5 rounded-xl border border-primary-600">
+                    <div class="w-8 h-8 rounded-full bg-white text-primary-800 font-black flex items-center justify-center text-xs shadow-sm" id="userAvatar">
+                        AD
+                    </div>
+                    <div class="hidden sm:block text-left">
+                        <div class="text-xs font-bold leading-tight" id="userNameLabel">Administrador</div>
+                        <span class="text-[10px] bg-primary-900/60 text-primary-100 px-1.5 py-0.2 rounded font-semibold" id="userRoleBadge">Admin</span>
+                    </div>
+                    <button onclick="logout()" class="ml-2 text-primary-200 hover:text-rose-300 p-1 rounded hover:bg-primary-800 transition" title="Cerrar Sesión">
+                        <i class="fa-solid fa-power-off text-sm"></i>
+                    </button>
+                </div>
+
+                <div class="flex items-center space-x-1 border-l border-primary-700 pl-2">
+                    <button onclick="openFirebaseConfigModal()" class="px-2.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-extrabold rounded-lg shadow transition flex items-center gap-1.5" title="Configurar Base de Datos Firebase Gratis">
+                        <i class="fa-solid fa-cloud text-sm"></i>
+                        <span class="hidden lg:inline" id="cloudStatusBtnLabel">Nube Conectada</span>
+                    </button>
+
+                    <button onclick="exportData()" class="p-2 text-primary-200 hover:text-white rounded-lg hover:bg-primary-700 transition" title="Exportar Backup JSON">
+                        <i class="fa-solid fa-download"></i>
+                    </button>
+                    <button onclick="triggerImport()" class="p-2 text-primary-200 hover:text-white rounded-lg hover:bg-primary-700 transition" title="Importar Backup JSON">
+                        <i class="fa-solid fa-upload"></i>
+                    </button>
+                    <input type="file" id="importFile" class="hidden" accept=".json" onchange="importData(event)">
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <div id="toastContainer" class="fixed top-20 right-4 z-50 flex flex-col gap-2 pointer-events-none"></div>
+
+    <!-- MAIN APP CONTAINER -->
+    <div class="flex-1 flex flex-col md:flex-row max-w-7xl w-full mx-auto px-0 sm:px-4 lg:px-8 py-4 gap-4 mb-16 md:mb-0">
+        
+        <!-- ASIDE NAV -->
+        <aside class="w-full md:w-64 flex-shrink-0">
+            <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden sticky top-20">
+                <div class="p-4 bg-slate-50 border-b border-slate-200 flex justify-between items-center">
+                    <p class="text-xs font-bold uppercase tracking-wider text-slate-400">Menú Operativo</p>
+                    <span id="navRoleIndicator" class="text-[10px] bg-slate-200 text-slate-700 px-2 py-0.5 rounded-full font-extrabold uppercase">Rol</span>
+                </div>
+                <nav class="p-2 space-y-1" id="mainNav">
+                    <button onclick="switchTab('dashboard')" id="btn-dashboard" class="nav-btn w-full flex items-center space-x-3 px-4 py-3 text-sm font-medium rounded-lg text-slate-600 hover:bg-slate-100 transition duration-150">
+                        <i class="fa-solid fa-chart-line text-lg text-slate-400"></i>
+                        <span>Resumen General</span>
+                    </button>
+                    <button onclick="switchTab('rutas')" id="btn-rutas" class="nav-btn w-full flex items-center space-x-3 px-4 py-3 text-sm font-medium rounded-lg text-slate-600 hover:bg-slate-100 transition duration-150">
+                        <i class="fa-solid fa-map-location-dot text-lg text-slate-400"></i>
+                        <span>Rutas</span>
+                    </button>
+                    <button onclick="switchTab('banqueras')" id="btn-banqueras" class="nav-btn w-full flex items-center space-x-3 px-4 py-3 text-sm font-medium rounded-lg text-slate-600 hover:bg-slate-100 transition duration-150">
+                        <i class="fa-solid fa-users text-lg text-slate-400"></i>
+                        <span>Banqueras (Personal)</span>
+                    </button>
+                    <button onclick="switchTab('pendientes')" id="btn-pendientes" class="nav-btn w-full flex items-center space-x-3 px-4 py-3 text-sm font-medium rounded-lg text-slate-600 hover:bg-slate-100 transition duration-150">
+                        <i class="fa-solid fa-wallet text-lg text-slate-400"></i>
+                        <span class="flex-1 text-left font-semibold text-rose-600">Saldos y Pendientes</span>
+                        <span class="bg-rose-100 text-rose-800 text-[10px] px-2 py-0.5 rounded-full font-bold" id="badgeTotalPendientesCount">0</span>
+                    </button>
+                    <button onclick="switchTab('cuadres')" id="btn-cuadres" class="nav-btn w-full flex items-center space-x-3 px-4 py-3 text-sm font-medium rounded-lg text-slate-600 hover:bg-slate-100 transition duration-150">
+                        <i class="fa-solid fa-file-invoice-dollar text-lg text-slate-400"></i>
+                        <span>Cuadres de Ruta</span>
+                    </button>
+                    
+                    <button onclick="switchTab('reportes')" id="btn-reportes" class="nav-btn w-full flex items-center space-x-3 px-4 py-3 text-sm font-medium rounded-lg text-slate-600 hover:bg-slate-100 transition duration-150">
+                        <i class="fa-solid fa-file-contract text-lg text-slate-400"></i>
+                        <span class="flex-1 text-left font-extrabold text-emerald-700">Reportes Consolidados</span>
+                    </button>
+
+                    <button onclick="switchTab('tickets')" id="btn-tickets" class="nav-btn w-full flex items-center space-x-3 px-4 py-3 text-sm font-medium rounded-lg text-slate-600 hover:bg-slate-100 transition duration-150">
+                        <i class="fa-solid fa-ticket text-lg text-slate-400"></i>
+                        <span class="flex-1 text-left font-semibold text-amber-600">Reportar Tickets</span>
+                        <span class="bg-amber-100 text-amber-800 text-[10px] px-2 py-0.5 rounded-full font-bold" id="badgeTotalTicketsCount">0</span>
+                    </button>
+                    <button onclick="switchTab('revisiones')" id="btn-revisiones" class="nav-btn w-full flex items-center space-x-3 px-4 py-3 text-sm font-medium rounded-lg text-slate-600 hover:bg-slate-100 transition duration-150">
+                        <i class="fa-solid fa-clipboard-check text-lg text-slate-400"></i>
+                        <span class="flex-1 text-left font-semibold text-indigo-600">Revisión de Cuadres</span>
+                        <span class="bg-indigo-100 text-indigo-800 text-[10px] px-2 py-0.5 rounded-full font-bold" id="badgePendingReviewsCount">0</span>
+                    </button>
+
+                    <button onclick="switchTab('usuarios')" id="btn-usuarios" class="nav-btn w-full flex items-center space-x-3 px-4 py-3 text-sm font-medium rounded-lg text-slate-600 hover:bg-slate-100 transition duration-150 border-t border-slate-100">
+                        <i class="fa-solid fa-user-gear text-lg text-slate-400"></i>
+                        <span class="flex-1 text-left font-bold text-purple-700">Usuarios y Roles</span>
+                        <span class="bg-purple-100 text-purple-800 text-[10px] px-2 py-0.5 rounded-full font-bold" id="badgeUsersCount">0</span>
+                    </button>
+
+                    <button onclick="switchTab('bitacora')" id="btn-bitacora" class="nav-btn w-full flex items-center space-x-3 px-4 py-3 text-sm font-medium rounded-lg text-slate-600 hover:bg-slate-100 transition duration-150">
+                        <i class="fa-solid fa-list-check text-lg text-slate-400"></i>
+                        <span class="flex-1 text-left font-bold text-teal-700">Bitácora de Eventos</span>
+                        <span class="bg-teal-100 text-teal-800 text-[10px] px-2 py-0.5 rounded-full font-bold" id="badgeLogsCount">0</span>
+                    </button>
+                </nav>
+                <div class="p-4 border-t border-slate-100 bg-slate-50 text-center" id="dbStatusBadgeContainer">
+                    <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold bg-emerald-100 text-emerald-800 animate-pulse" id="dbStatusBadge">
+                        <span class="w-1.5 h-1.5 mr-1.5 rounded-full bg-emerald-500"></span>
+                        Nube Firebase Activa
+                    </span>
+                </div>
+            </div>
+        </aside>
+
+        <!-- MAIN CONTENT AREA -->
+        <main class="flex-1 min-w-0 bg-white md:rounded-xl shadow-sm border border-slate-200 p-4 sm:p-6">
+            
+            <!-- SECTION: DASHBOARD -->
+            <section id="sec-dashboard" class="tab-content hidden">
+                <div id="dashboardRevisionAlert" class="hidden bg-indigo-50 border border-indigo-200 rounded-xl p-4 mb-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                    <div class="flex items-start space-x-3">
+                        <div class="bg-indigo-100 text-indigo-800 p-2.5 rounded-lg">
+                            <i class="fa-solid fa-bell text-lg animate-bounce"></i>
+                        </div>
+                        <div>
+                            <h4 class="font-bold text-indigo-900 text-sm">Alerta de Supervisión Diaria</h4>
+                            <p class="text-xs text-indigo-700 mt-0.5" id="dashboardRevisionAlertText">Tienes grupos pendientes de revisar hoy.</p>
+                        </div>
+                    </div>
+                    <button onclick="switchTab('revisiones')" class="px-3.5 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-xs font-bold transition">
+                        Comenzar Revisión
+                    </button>
+                </div>
+
+                <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 mb-6">
+                    <div>
+                        <h2 class="text-2xl font-black text-slate-900 tracking-tight">Resumen de Operaciones</h2>
+                        <p class="text-sm text-slate-550">Análisis acumulado, balances y rutas de recolección</p>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+                    <div class="bg-gradient-to-br from-blue-50 to-blue-100 p-4 rounded-xl border border-blue-200 shadow-sm">
+                        <div class="flex justify-between items-center">
+                            <span class="text-xs font-bold text-blue-700 uppercase">Pendientes de Ruta</span>
+                            <i class="fa-solid fa-route text-blue-500 text-lg"></i>
+                        </div>
+                        <p class="text-2xl font-black text-blue-950 mt-2" id="dashKpiRutaSum">$0.00</p>
+                        <p class="text-xs text-blue-600 mt-1" id="dashKpiCountRutaSum">0 de cuadres activos</p>
+                    </div>
+                    
+                    <div class="bg-gradient-to-br from-amber-50 to-amber-100 p-4 rounded-xl border border-amber-200 shadow-sm">
+                        <div class="flex justify-between items-center">
+                            <span class="text-xs font-bold text-amber-700 uppercase">Saldos Históricos</span>
+                            <i class="fa-solid fa-folder-open text-amber-500 text-lg"></i>
+                        </div>
+                        <p class="text-2xl font-black text-amber-955 mt-2" id="dashKpiViejos">$0.00</p>
+                        <p class="text-xs text-amber-600 mt-1">Saldos antiguos sin liquidar</p>
+                    </div>
+
+                    <div class="bg-gradient-to-br from-purple-50 to-purple-100 p-4 rounded-xl border border-purple-200 shadow-sm">
+                        <div class="flex justify-between items-center">
+                            <span class="text-xs font-bold text-purple-700 uppercase">Recaudos y Depósitos</span>
+                            <i class="fa-solid fa-building-columns text-purple-500 text-lg"></i>
+                        </div>
+                        <p class="text-2xl font-black text-purple-955 mt-2" id="dashKpiEntregas">$0.00</p>
+                        <p class="text-xs text-purple-600 mt-1" id="dashKpiCountEntregas">Recaudado / validado hoy</p>
+                    </div>
+
+                    <div class="bg-gradient-to-br from-emerald-50 to-emerald-100 p-4 rounded-xl border border-emerald-200 shadow-sm">
+                        <div class="flex justify-between items-center">
+                            <span class="text-xs font-bold text-emerald-700 uppercase">Total en la Calle</span>
+                            <i class="fa-solid fa-hand-holding-dollar text-emerald-500 text-lg"></i>
+                        </div>
+                        <p class="text-2xl font-black text-emerald-955 mt-2" id="dashKpiCarteraTotal">$0.00</p>
+                        <p class="text-xs text-emerald-600 mt-1">Cartera de cobro unificada</p>
+                    </div>
+                </div>
+
+                <div class="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm">
+                    <div class="px-5 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50">
+                        <h3 class="font-bold text-slate-800 flex items-center text-sm">
+                            <i class="fa-solid fa-history text-primary-500 mr-2"></i> Actividad Operativa Registrada
+                        </h3>
+                    </div>
+                    <div class="p-4 grid grid-cols-1 lg:grid-cols-3 gap-4">
+                        <div class="bg-slate-50 p-4 rounded-xl border border-slate-150">
+                            <h4 class="font-bold text-xs text-slate-500 uppercase tracking-wider mb-2">Últimos Cuadres de Rango</h4>
+                            <div class="space-y-2" id="dashCuadresSubset"></div>
+                        </div>
+                        <div class="bg-slate-50 p-4 rounded-xl border border-slate-150">
+                            <h4 class="font-bold text-xs text-slate-500 uppercase tracking-wider mb-2">Resumen por Grupos / Rutas</h4>
+                            <div class="space-y-2" id="dashRutasBreakdown"></div>
+                        </div>
+                        <div class="bg-slate-50 p-4 rounded-xl border border-slate-150">
+                            <h4 class="font-bold text-xs text-slate-500 uppercase tracking-wider mb-2">Saldos de Pendientes de Ruta</h4>
+                            <div class="space-y-2" id="dashPendientesSubset"></div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- SECTION: CUADRES DE RUTA -->
+            <section id="sec-cuadres" class="tab-content hidden">
+                <div class="mb-6">
+                    <h2 class="text-2xl font-black text-slate-900 tracking-tight">Cuadres Diarios de Rutas</h2>
+                    <p class="text-sm text-slate-550">Calculadora de cierres con rangos de fechas, sueldos automáticos, conceptos manuales (+/-) y préstamos de mensajero para pérdidas de hoy.</p>
+                </div>
+
+                <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                    <div class="bg-slate-50 border border-slate-200 rounded-xl p-5 shadow-sm space-y-4">
+                        <h3 class="font-extrabold text-slate-800 text-base border-b border-slate-200 pb-2 flex items-center">
+                            <i class="fa-solid fa-calculator text-primary-500 mr-2"></i> Generar Cierre de Ruta
+                        </h3>
+                        
+                        <form id="cuadreForm" onsubmit="saveCuadre(event); return false;" class="space-y-4 transition duration-300 rounded-lg">
+                            <div>
+                                <label for="cuadreRutaFiltro" class="block text-xs font-bold text-slate-700 uppercase">Seleccionar Ruta de Trabajo</label>
+                                <select id="cuadreRutaFiltro" onchange="filterBanquerasByRouteForCuadre()" required class="mt-1 block w-full rounded-lg border border-slate-300 bg-white py-2 px-3 text-sm focus:border-primary-500">
+                                    <option value="">-- Seleccionar Ruta --</option>
+                                </select>
+                            </div>
+
+                            <div>
+                                <label for="cuadreBanquera" class="block text-xs font-bold text-slate-700 uppercase">Seleccionar Banquera Activa</label>
+                                <select id="cuadreBanquera" onchange="autoFillBanqueraScheme()" required class="mt-1 block w-full rounded-lg border border-slate-300 bg-white py-2 px-3 text-sm focus:border-primary-500">
+                                    <option value="">-- Seleccione una Ruta primero --</option>
+                                </select>
+                            </div>
+
+                            <div class="grid grid-cols-2 gap-2">
+                                <div>
+                                    <label for="cuadreFechaDesde" class="block text-[10px] font-bold text-slate-700 uppercase">Fecha Desde</label>
+                                    <input type="date" id="cuadreFechaDesde" onchange="renderRutaControlCards()" required class="mt-1 block w-full rounded-lg border border-slate-300 py-1.5 px-3 text-xs">
+                                </div>
+                                <div>
+                                    <label for="cuadreFechaHasta" class="block text-[10px] font-bold text-slate-700 uppercase">Fecha Hasta</label>
+                                    <input type="date" id="cuadreFechaHasta" onchange="renderRutaControlCards()" required class="mt-1 block w-full rounded-lg border border-slate-300 py-1.5 px-3 text-xs">
+                                </div>
+                            </div>
+
+                            <div id="banqueraEsquemaBadge" class="hidden p-3 rounded-lg bg-primary-50 border border-primary-100 text-xs text-primary-800">
+                                <span class="font-bold block mb-1"><i class="fa-solid fa-circle-info"></i> Esquema de Pago:</span>
+                                <span id="banqueraEsquemaTexto">Porcentaje: 20%</span>
+                            </div>
+
+                            <div class="bg-white p-3.5 rounded-xl border border-slate-200 space-y-2 shadow-sm">
+                                <label class="block text-xs font-black text-slate-800 uppercase tracking-wide">Resultado de la Banca</label>
+                                
+                                <div class="grid grid-cols-2 gap-2">
+                                    <button type="button" id="btnModeGana" onclick="setResultadoMode('gana')" class="py-2.5 px-3 rounded-xl border text-xs font-black transition flex items-center justify-center gap-1.5 shadow-sm bg-emerald-600 text-white border-emerald-600">
+                                        <i class="fa-solid fa-arrow-trend-up text-sm"></i> <span>Gana (+)</span>
+                                    </button>
+                                    <button type="button" id="btnModePierde" onclick="setResultadoMode('pierde')" class="py-2.5 px-3 rounded-xl border text-xs font-black transition flex items-center justify-center gap-1.5 shadow-sm bg-white text-slate-600 border-slate-300 hover:bg-rose-50 hover:text-rose-700">
+                                        <i class="fa-solid fa-arrow-trend-down text-sm"></i> <span>Pierde (-)</span>
+                                    </button>
+                                </div>
+
+                                <div>
+                                    <input type="number" step="0.01" id="cuadreResultadoMonto" oninput="handleResultadoAmountInput()" placeholder="Escribir Monto ($)" class="block w-full rounded-xl border-2 border-emerald-500 py-2.5 px-3.5 text-base font-mono font-black text-slate-900 bg-slate-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500">
+                                </div>
+                            </div>
+
+                            <div class="bg-amber-50/80 p-3 rounded-xl border border-amber-200 space-y-1.5 shadow-sm">
+                                <label for="cuadrePrestoMensajero" class="block text-xs font-black text-amber-900 uppercase flex items-center gap-1.5">
+                                    <i class="fa-solid fa-hand-holding-dollar text-amber-600"></i> Entregó para Pérdida (Premios de hoy) ($)
+                                </label>
+                                <input type="number" step="0.01" id="cuadrePrestoMensajero" oninput="liveCalculateCuadre()" placeholder="Ej: 31255" class="block w-full rounded-lg border border-amber-300 py-2 px-3 text-sm font-mono font-bold text-amber-950 bg-white focus:outline-none focus:ring-1 focus:ring-amber-500">
+                                <p class="text-[10px] text-amber-700 font-medium">Efectivo inyectado por el mensajero a la banca para cubrir los premios del día.</p>
+                            </div>
+
+                            <div>
+                                <label for="cuadrePendiente" class="block text-xs font-bold text-slate-700 uppercase">Saldo Pendiente Anterior ($)</label>
+                                <input type="number" step="0.01" id="cuadrePendiente" oninput="liveCalculateCuadre()" class="mt-1 block w-full rounded-lg border border-slate-300 py-2 px-3 text-sm font-semibold" placeholder="Ej: 1819">
+                            </div>
+
+                            <div class="bg-slate-100 p-3 rounded-xl space-y-2 border border-slate-200">
+                                <span class="text-[10px] font-black text-slate-700 uppercase block tracking-wider flex items-center gap-1.5">
+                                    <i class="fa-solid fa-plus-minus text-blue-600"></i> Agregar Concepto Manual (+ / -)
+                                </span>
+                                
+                                <div class="grid grid-cols-12 gap-1.5 items-center">
+                                    <input type="text" id="manualConceptLabel" placeholder="Ej: Papel, Luz, Faltante" class="col-span-5 block w-full rounded-lg border border-slate-300 py-1.5 px-2 text-xs bg-white focus:outline-none">
+                                    <input type="number" step="0.01" id="manualConceptMonto" placeholder="Monto" class="col-span-4 block w-full rounded-lg border border-slate-300 py-1.5 px-2 text-xs font-bold bg-white text-right focus:outline-none">
+                                    <div class="col-span-3 flex gap-1">
+                                        <button type="button" onclick="addCuadreConcepto('+')" class="flex-1 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg font-black text-xs shadow transition" title="Agregar Ingreso / Ajuste (+)">
+                                            +
+                                        </button>
+                                        <button type="button" onclick="addCuadreConcepto('-')" class="flex-1 py-1.5 bg-rose-600 hover:bg-rose-700 text-white rounded-lg font-black text-xs shadow transition" title="Agregar Gasto / Salida (-)">
+                                            -
+                                        </button>
+                                    </div>
+                                </div>
+
+                                <div id="manualConceptsList" class="space-y-1 pt-1"></div>
+                            </div>
+
+                            <div id="menudoPendienteAlert" class="hidden bg-amber-50 border border-amber-200 rounded-lg p-2.5 text-xs text-amber-955">
+                                <div class="flex items-center justify-between mb-1">
+                                    <span class="font-bold">Saldo a Favor: <span id="menudoPendienteValor">$0.00</span></span>
+                                    <label class="inline-flex items-center cursor-pointer">
+                                        <input type="checkbox" id="cuadreAplicarMenudo" onchange="liveCalculateCuadre()" class="rounded border-amber-300 text-amber-600 focus:ring-amber-500">
+                                        <span class="ml-1.5 text-[10px] font-bold uppercase">Rebajar ahora</span>
+                                    </label>
+                                </div>
+                                <p class="text-[9px] text-amber-700">El mensajero le debe este saldo de un cuadre anterior o quedó como saldo bancario a favor.</p>
+                            </div>
+
+                            <div class="bg-slate-900 text-white rounded-xl p-4 space-y-2 shadow-inner">
+                                <div class="flex justify-between text-xs text-slate-400">
+                                    <span>Gana (Ventas):</span>
+                                    <span id="calcComisionVentas" class="text-emerald-400 font-bold">$0.00</span>
+                                </div>
+                                <div class="flex justify-between text-xs text-slate-400">
+                                    <span>Pierde / Conceptos Negativos:</span>
+                                    <span id="calcComisionRecargas" class="text-rose-400 font-bold">-$0.00</span>
+                                </div>
+                                <div class="flex justify-between text-xs text-slate-400 border-b border-slate-700 pb-2 font-mono">
+                                    <span>Pendientes / Pérdida de hoy:</span>
+                                    <span id="calcSueldoNeto">$0.00</span>
+                                </div>
+                                <div class="flex justify-between text-sm font-semibold text-yellow-400 pt-1">
+                                    <span id="labelBalanceTotal">Recoger:</span>
+                                    <span id="calcBalanceTotal" class="text-xl font-black">$0.00</span>
+                                </div>
+                            </div>
+
+                            <button type="submit" class="w-full inline-flex items-center justify-center px-4 py-3 bg-green-600 hover:bg-green-700 text-white font-bold rounded-lg shadow-md transition">
+                                <i class="fa-solid fa-save mr-2"></i> Guardar Cuadre Diario
+                            </button>
+                        </form>
+                    </div>
+
+                    <div class="lg:col-span-2 space-y-4">
+                        <div id="rutaControlCardContainer" class="bg-gradient-to-br from-slate-50 to-slate-100/50 border border-slate-200 rounded-xl p-5 shadow-sm hidden">
+                            <div class="border-b border-slate-200 pb-3 mb-4 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
+                                <div>
+                                    <h3 class="font-extrabold text-slate-800 text-sm flex items-center">
+                                        <i class="fa-solid fa-route text-primary-600 mr-2"></i> Monitoreo de Visitas: <span id="rutaControlTitleName" class="ml-1 text-primary-700 font-black">Ruta</span>
+                                    </h3>
+                                    <p class="text-[11px] text-slate-555 font-semibold">Haz clic en cualquier tarjeta de banquera para cuadrarla al instante.</p>
+                                </div>
+                                <div class="flex items-center space-x-3 text-xs bg-white py-1 px-3 rounded-lg border shadow-sm">
+                                    <span class="font-bold text-slate-655 font-semibold">Progreso: <span id="rutaProgressLabel" class="text-primary-600 font-mono font-extrabold">0/0</span></span>
+                                    <div class="w-20 bg-slate-200 rounded-full h-2">
+                                        <div id="rutaProgressBar" class="bg-primary-600 h-2 rounded-full transition-all duration-300" style="width: 0%"></div>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="space-y-4">
+                                <div>
+                                    <span class="text-[10px] font-extrabold text-rose-600 uppercase tracking-wider block mb-2 flex items-center gap-1.5">
+                                        <span class="w-2 h-2 rounded-full bg-rose-500 animate-pulse"></span> Pendientes de Visita / Cuadre
+                                    </span>
+                                    <div id="rutaBanquerasPendientesGrid" class="grid grid-cols-2 sm:grid-cols-3 gap-2.5"></div>
+                                </div>
+                                
+                                <div class="border-t border-slate-200 pt-3">
+                                    <span class="text-[10px] font-extrabold text-emerald-600 uppercase tracking-wider block mb-2 flex items-center gap-1.5">
+                                        <span class="w-2 h-2 rounded-full bg-emerald-500"></span> Ya Visitadas / Cuadradas
+                                    </span>
+                                    <div id="rutaBanquerasCompletadasGrid" class="grid grid-cols-2 sm:grid-cols-3 gap-2.5"></div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="bg-white border border-slate-200 rounded-xl p-4 shadow-sm">
+                            <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 mb-3 border-b pb-2">
+                                <h3 class="font-bold text-slate-800 text-sm">Historial General de Cuadres Diarios</h3>
+                                <div class="flex flex-wrap items-center gap-2 w-full sm:w-auto">
+                                    <select id="cuadreHistoryRutaFilter" onchange="renderCuadresHistory(); renderRutaControlCards();" class="block rounded-lg border border-slate-300 py-1.5 px-3 text-xs bg-white focus:outline-none focus:ring-1 focus:ring-primary-500 font-semibold text-slate-700">
+                                        <option value="todos">Todas las Rutas</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <div class="space-y-3" id="cuadresListContainer"></div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- SECTION EXCLUSIVA: REPORTES CONSOLIDADOS DE CUADRE DE RUTA -->
+            <section id="sec-reportes" class="tab-content hidden space-y-6">
+                <div class="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4 bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
+                    <div>
+                        <h2 class="text-xl sm:text-2xl font-black text-slate-900 tracking-tight flex items-center gap-2">
+                            <i class="fa-solid fa-receipt text-emerald-600"></i> Reporte Consolidado de Cuadre de Ruta
+                        </h2>
+                        <p class="text-xs sm:text-sm text-slate-500 mt-0.5">Genera los formatos oficiales de liquidación de dinero del mensajero, ajustadores y entregas para pérdidas de hoy.</p>
+                    </div>
+
+                    <div class="flex flex-wrap items-center gap-3 w-full lg:w-auto">
+                        <div class="flex flex-wrap items-center gap-2">
+                            <select id="reporteRutaSelect" onchange="renderReportesConsolidados()" class="rounded-lg border border-slate-300 py-2 px-3 text-xs font-extrabold bg-slate-50 text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500">
+                                <option value="todos">-- Seleccionar Ruta --</option>
+                            </select>
+
+                            <input type="date" id="reporteFechaDesde" onchange="renderReportesConsolidados()" class="rounded-lg border border-slate-300 py-2 px-2.5 text-xs font-semibold bg-white">
+                            <input type="date" id="reporteFechaHasta" onchange="renderReportesConsolidados()" class="rounded-lg border border-slate-300 py-2 px-2.5 text-xs font-semibold bg-white">
+                        </div>
+
+                        <button onclick="shareFullConsolidatedWA()" class="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-extrabold rounded-lg shadow-sm transition flex items-center gap-2">
+                            <i class="fa-brands fa-whatsapp text-base"></i> Enviar por WhatsApp
+                        </button>
+                    </div>
+                </div>
+
+                <div class="bg-slate-50/80 border border-slate-200 rounded-xl p-4 sm:p-5 shadow-sm space-y-3">
+                    <div class="flex justify-between items-center border-b border-slate-200 pb-2">
+                        <span class="text-xs font-black text-slate-700 uppercase tracking-wider flex items-center gap-1.5">
+                            <i class="fa-solid fa-plus-minus text-blue-600"></i> AGREGAR AJUSTES MANUALES (DEPÓSITOS, PAGOS EXTRA, OPERACIONES ESPECIALES)
+                        </span>
+                        <span class="text-[10px] bg-slate-200 text-slate-700 px-2 py-0.5 rounded-full font-extrabold" id="reporteRutaBadge">Para esta ruta</span>
+                    </div>
+
+                    <form id="reporteAjusteForm" onsubmit="addReporteAjusteManual(event); return false;" class="grid grid-cols-1 md:grid-cols-12 gap-3 items-end">
+                        <div class="md:col-span-5">
+                            <label for="repAjusteConcepto" class="block text-[10px] font-bold text-slate-600 uppercase mb-1">Concepto / Detalle *</label>
+                            <input type="text" id="repAjusteConcepto" required placeholder="Ej: Dep. Julio a #1182 o Col. Caminante #930" class="block w-full rounded-lg border border-slate-300 py-2 px-3 text-xs bg-white focus:outline-none focus:ring-1 focus:ring-primary-500 font-medium">
+                        </div>
+
+                        <div class="md:col-span-3">
+                            <label for="repAjusteMonto" class="block text-[10px] font-bold text-slate-600 uppercase mb-1">Monto (RD$) *</label>
+                            <input type="number" step="0.01" id="repAjusteMonto" required placeholder="Ej: 2500" class="block w-full rounded-lg border border-slate-300 py-2 px-3 text-xs bg-white font-mono font-bold focus:outline-none focus:ring-1 focus:ring-primary-500">
+                        </div>
+
+                        <div class="md:col-span-4 lg:col-span-3">
+                            <label for="repAjusteTipo" class="block text-[10px] font-bold text-slate-600 uppercase mb-1">Tipo de Ajuste *</label>
+                            <select id="repAjusteTipo" class="block w-full rounded-lg border border-slate-300 py-2 px-2.5 text-xs bg-white font-bold focus:outline-none focus:ring-1 focus:ring-primary-500">
+                                <option value="+">Positivo (+) Entrada / Depósito Recibido</option>
+                                <option value="-">Negativo (-) Pérdida / Descuento / Salida</option>
+                            </select>
+                        </div>
+
+                        <div class="md:col-span-12 lg:col-span-1">
+                            <button type="submit" class="w-full py-2 px-3 bg-slate-800 hover:bg-slate-900 text-white text-xs font-extrabold rounded-lg shadow transition flex items-center justify-center gap-1">
+                                <i class="fa-solid fa-plus text-xs"></i> <span>Agregar</span>
+                            </button>
+                        </div>
+                    </form>
+
+                    <div id="reporteAjustesListaContainer" class="flex flex-wrap gap-2 pt-1"></div>
+                </div>
+
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                    
+                    <div class="bg-[#0b1329] text-emerald-400 rounded-2xl shadow-xl border border-slate-800 overflow-hidden flex flex-col">
+                        <div class="bg-[#0d1733] px-5 py-3.5 border-b border-slate-800/80 flex items-center justify-between text-slate-200">
+                            <span class="text-xs font-black tracking-wider uppercase flex items-center gap-2">
+                                <i class="fa-solid fa-receipt text-emerald-400"></i> CUADRE DE EFECTIVO MENSAJERO
+                            </span>
+                            <div class="flex items-center gap-2">
+                                <button onclick="copyTerminalReport('reportePreviewEfectivoText')" class="p-1.5 text-slate-400 hover:text-white rounded hover:bg-slate-800/60 text-xs transition" title="Copiar texto">
+                                    <i class="fa-solid fa-copy"></i>
+                                </button>
+                                <button onclick="shareSingleReportWA('efectivo')" class="p-1.5 text-emerald-400 hover:text-emerald-300 rounded hover:bg-slate-800/60 text-xs transition" title="Enviar este reporte por WA">
+                                    <i class="fa-brands fa-whatsapp text-sm"></i>
+                                </button>
+                            </div>
+                        </div>
+
+                        <div class="p-5 font-mono-code text-xs sm:text-sm leading-relaxed overflow-x-auto min-h-[360px] flex-1 text-emerald-400 whitespace-pre" id="reportePreviewEfectivoText">
+*CUADRE: Seleccione una ruta para generar*
+                        </div>
+                    </div>
+
+                    <div class="bg-[#0b1329] text-amber-400 rounded-2xl shadow-xl border border-slate-800 overflow-hidden flex flex-col">
+                        <div class="bg-[#0d1733] px-5 py-3.5 border-b border-slate-800/80 flex items-center justify-between text-slate-200">
+                            <span class="text-xs font-black tracking-wider uppercase flex items-center gap-2">
+                                <i class="fa-solid fa-triangle-exclamation text-amber-400"></i> PENDIENTES Y PÉRDIDAS DE RUTA (INC. ENTREGAS A BANCAS)
+                            </span>
+                            <div class="flex items-center gap-2">
+                                <button onclick="copyTerminalReport('reportePreviewPendientesText')" class="p-1.5 text-slate-400 hover:text-white rounded hover:bg-slate-800/60 text-xs transition" title="Copiar texto">
+                                    <i class="fa-solid fa-copy"></i>
+                                </button>
+                                <button onclick="shareSingleReportWA('pendientes')" class="p-1.5 text-amber-400 hover:text-amber-300 rounded hover:bg-slate-800/60 text-xs transition" title="Enviar este reporte por WA">
+                                    <i class="fa-brands fa-whatsapp text-sm"></i>
+                                </button>
+                            </div>
+                        </div>
+
+                        <div class="p-5 font-mono-code text-xs sm:text-sm leading-relaxed overflow-x-auto min-h-[360px] flex-1 text-amber-400 whitespace-pre" id="reportePreviewPendientesText">
+*Pendientes: Seleccione una ruta para generar*
+                        </div>
+                    </div>
+
+                </div>
+            </section>
+
+            <!-- SECTION: RUTAS -->
+            <section id="sec-rutas" class="tab-content hidden">
+                <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
+                    <div>
+                        <h2 class="text-2xl font-black text-slate-900 tracking-tight">Rutas de Distribución</h2>
+                        <p class="text-sm text-slate-500">Crea sectores geográficos, asigna mensajeros y ordena el personal de ventas.</p>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                    <div class="bg-slate-50 border border-slate-200 rounded-xl p-5 shadow-sm space-y-4 h-fit">
+                        <h3 id="rutaFormTitle" class="font-extrabold text-slate-800 text-base border-b border-slate-200 pb-2 flex items-center">
+                            <i class="fa-solid fa-map-location-dot text-primary-500 mr-2"></i> Crear Nueva Ruta
+                        </h3>
+                        <form id="rutaForm" onsubmit="saveRuta(event); return false;" class="space-y-4">
+                            <input type="hidden" id="rId">
+                            <div>
+                                <label for="rNombre" class="block text-xs font-bold text-slate-700 uppercase">Nombre de la Ruta</label>
+                                <input type="text" id="rNombre" required placeholder="Ej: Alcarrizos #2" class="mt-1 block w-full rounded-lg border border-slate-300 py-2 px-3 text-sm focus:outline-none focus:ring-1 focus:ring-primary-500 bg-white">
+                            </div>
+                            <div>
+                                <label for="rDescripcion" class="block text-xs font-bold text-slate-700 uppercase">Descripción / Detalles</label>
+                                <input type="text" id="rDescripcion" placeholder="Ej: Frecuencia Lunes y Jueves" class="mt-1 block w-full rounded-lg border border-slate-300 py-2 px-3 text-sm focus:outline-none focus:ring-1 focus:ring-primary-500 bg-white">
+                            </div>
+                            <div>
+                                <label for="rMensajero" class="block text-xs font-bold text-slate-700 uppercase">Mensajero Encargado</label>
+                                <input type="text" id="rMensajero" placeholder="Ej: Pedro Ortiz" class="mt-1 block w-full rounded-lg border border-slate-300 py-2 px-3 text-sm focus:outline-none focus:ring-1 focus:ring-primary-500 bg-white">
+                            </div>
+                            <div class="space-y-2">
+                                <button type="submit" class="w-full inline-flex items-center justify-center px-4 py-2.5 bg-primary-600 hover:bg-primary-700 text-white font-bold rounded-lg shadow-sm transition text-xs sm:text-sm">
+                                    <i class="fa-solid fa-circle-plus mr-1.5"></i> Guardar Ruta
+                                </button>
+                                <button type="button" id="btnCancelarRutaEdit" onclick="cancelRutaEdit()" class="hidden w-full inline-flex items-center justify-center px-4 py-2 bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold rounded-lg transition text-xs">
+                                    Cancelar Edición
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+
+                    <div class="lg:col-span-2">
+                        <div class="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm">
+                            <table class="w-full text-left border-collapse">
+                                <thead>
+                                    <tr class="bg-slate-100 text-xs font-semibold text-slate-600 uppercase border-b border-slate-200">
+                                        <th class="py-3 px-4">Ruta</th>
+                                        <th class="py-3 px-4">Descripción / Frecuencia</th>
+                                        <th class="py-3 px-4">Mensajero</th>
+                                        <th class="py-3 px-4 text-center">Banqueras Activas</th>
+                                        <th class="py-3 px-4 text-center">Acciones</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="rutasTableBody" class="divide-y divide-slate-100 text-sm"></tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- SECTION: BANQUERAS -->
+            <section id="sec-banqueras" class="tab-content hidden">
+                <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
+                    <div>
+                        <h2 class="text-2xl font-black text-slate-900 tracking-tight">Banqueras de la Red</h2>
+                        <p class="text-sm text-slate-500">Configuración de perfiles de venta, asignación de rutas, estado y configuración de remuneraciones.</p>
+                    </div>
+                    <button onclick="openBanqueraModal()" class="w-full sm:w-auto inline-flex items-center justify-center px-4 py-2.5 bg-primary-600 hover:bg-primary-700 text-white font-bold rounded-lg shadow-sm transition">
+                        <i class="fa-solid fa-user-plus mr-2"></i> Registrar Banquera
+                    </button>
+                </div>
+
+                <div class="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm">
+                    <div class="p-4 bg-slate-50 border-b border-slate-200 flex flex-col md:flex-row gap-3 justify-between items-stretch md:items-center">
+                        <div class="relative flex-1 max-w-md">
+                            <span class="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none text-slate-400">
+                                <i class="fa-solid fa-magnifying-glass text-xs"></i>
+                            </span>
+                            <input type="text" id="banqueraSearch" oninput="renderBanqueras()" placeholder="Buscar por nombre, código..." class="block w-full pl-10 pr-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-1 focus:ring-primary-500 bg-white">
+                        </div>
+                        <div class="flex flex-col sm:flex-row gap-2">
+                            <select id="banqueraRutaFilter" onchange="renderBanqueras()" class="block rounded-lg border border-slate-300 py-2 px-3 text-sm focus:outline-none focus:ring-1 focus:ring-primary-500 bg-white font-semibold">
+                                <option value="todos">Todas las Rutas</option>
+                            </select>
+                            
+                            <select id="banqueraStatusFilter" onchange="renderBanqueras()" class="block rounded-lg border border-slate-300 py-2 px-3 text-sm focus:outline-none focus:ring-1 focus:ring-primary-500 bg-white font-semibold">
+                                <option value="todos">Todos los Estados</option>
+                                <option value="Activa" selected>Solo Activas</option>
+                                <option value="Cancelada">Inactivas / Canceladas</option>
+                                <option value="Abandonó">Abandonaron</option>
+                                <option value="Se mudó">Se mudaron</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-left border-collapse">
+                            <thead>
+                                <tr class="bg-slate-100 text-xs font-semibold text-slate-600 uppercase border-b border-slate-200">
+                                    <th class="py-3 px-4">Banquera (Código)</th>
+                                    <th class="py-3 px-4">Estado / Ruta</th>
+                                    <th class="py-3 px-4">Equipo / Terminal</th>
+                                    <th class="py-3 px-4">Teléfono</th>
+                                    <th class="py-3 px-4">Remuneración y Ganancias</th>
+                                    <th class="py-3 px-4 text-center">Acciones</th>
+                                </tr>
+                            </thead>
+                            <tbody id="banquerasTableBody" class="divide-y divide-slate-100 text-sm"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </section>
+
+            <!-- SECTION: PENDIENTES -->
+            <section id="sec-pendientes" class="tab-content hidden">
+                <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
+                    <div>
+                        <h2 class="text-2xl font-black text-slate-900 tracking-tight">Saldos y Pendientes Diarios</h2>
+                        <p class="text-sm text-slate-500">Buscador y consolidador de carteras. Los saldos restantes de los cuadres se guardan aquí.</p>
+                    </div>
+                    <div class="flex flex-wrap gap-2 w-full sm:w-auto">
+                        <button onclick="openShareRouteModal()" class="flex-1 sm:flex-none inline-flex items-center justify-center px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-lg shadow-sm transition text-xs sm:text-sm">
+                            <i class="fa-solid fa-share-nodes mr-1.5"></i> Enviar Ruta por WA
+                        </button>
+                        <button onclick="openPendienteModal()" class="flex-1 sm:flex-none inline-flex items-center justify-center px-4 py-2.5 bg-rose-600 hover:bg-rose-700 text-white font-bold rounded-lg shadow-sm transition text-xs sm:text-sm">
+                            <i class="fa-solid fa-plus mr-1.5"></i> Registrar Pendiente
+                        </button>
+                        <button onclick="openEntregaModal()" class="flex-1 sm:flex-none inline-flex items-center justify-center px-4 py-2.5 bg-purple-600 hover:bg-purple-700 text-white font-bold rounded-lg shadow-sm transition text-xs sm:text-sm">
+                            <i class="fa-solid fa-building-columns mr-1.5"></i> Reportar Transacción
+                        </button>
+                    </div>
+                </div>
+
+                <div class="bg-white border border-slate-200 rounded-xl shadow-sm mb-6 overflow-hidden">
+                    <div class="p-4 bg-slate-50 border-b border-slate-200">
+                        <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+                            <div class="md:col-span-2 relative">
+                                <span class="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none text-slate-400">
+                                    <i class="fa-solid fa-magnifying-glass"></i>
+                                </span>
+                                <input type="text" id="pendienteSearchMaster" oninput="renderPendientesMaster()" placeholder="BUSCADOR RÁPIDO: Escribe nombre o código..." class="block w-full pl-10 pr-3 py-2.5 border-2 border-primary-500 rounded-lg text-sm font-semibold placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white">
+                            </div>
+                            <div>
+                                <select id="pendienteCategoryFilter" onchange="renderPendientesMaster()" class="block w-full rounded-lg border border-slate-300 py-2.5 px-3 text-sm font-semibold bg-white focus:outline-none focus:ring-1 focus:ring-primary-500">
+                                    <option value="todos">-- Todas las Categorías --</option>
+                                    <option value="Ruta">Pendientes de Ruta</option>
+                                    <option value="Viejo">Saldos Históricos</option>
+                                    <option value="Entrega">Depósitos y Entregas Recibidas</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="px-4 py-3 bg-slate-100 flex flex-wrap gap-2 border-b border-slate-200 text-xs">
+                        <button onclick="setCategoryFilter('todos')" class="px-3 py-1 bg-white hover:bg-slate-200 rounded-full font-bold border border-slate-300 text-slate-700 shadow-sm" id="pFilter-todos">Todos</button>
+                        <button onclick="setCategoryFilter('Ruta')" class="px-3 py-1 bg-blue-500 hover:bg-blue-600 rounded-full font-bold text-white shadow-sm" id="pFilter-Ruta">De Ruta</button>
+                        <button onclick="setCategoryFilter('Viejo')" class="px-3 py-1 bg-amber-500 hover:bg-amber-600 rounded-full font-bold text-white shadow-sm" id="pFilter-Viejo">Históricos</button>
+                        <button onclick="setCategoryFilter('Entrega')" class="px-3 py-1 bg-purple-600 hover:bg-purple-700 rounded-full font-bold text-white shadow-sm" id="pFilter-Entrega">Depósitos/Entregas</button>
+                    </div>
+
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-left border-collapse">
+                            <thead>
+                                <tr class="bg-slate-50 text-xs font-bold text-slate-600 uppercase border-b border-slate-200">
+                                    <th class="py-3 px-4">Banquera / Identificador</th>
+                                    <th class="py-3 px-4">Categoría del Saldo</th>
+                                    <th class="py-3 px-4 text-right">Monto Original</th>
+                                    <th class="py-3 px-4 text-right">Monto Restante Actual</th>
+                                    <th class="py-3 px-4">Estado / Notas</th>
+                                    <th class="py-3 px-4 text-center">Acciones</th>
+                                </tr>
+                            </thead>
+                            <tbody id="pendientesMasterTableBody" class="divide-y divide-slate-100 text-sm font-medium"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </section>
+
+            <!-- SECTION: REPORTAR TICKETS -->
+            <section id="sec-tickets" class="tab-content hidden">
+                <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
+                    <div>
+                        <h2 class="text-2xl font-black text-slate-900 tracking-tight">Reportar Tickets Irregulares</h2>
+                        <p class="text-sm text-slate-550">Documenta jugadas fraudulentas o fuera de tiempo de manera manual y repórtalas al Gerente de forma limpia.</p>
+                    </div>
+                    <div class="flex flex-wrap gap-2 w-full sm:w-auto">
+                        <button onclick="generateWeeklyTicketReportWA()" class="flex-1 sm:flex-none inline-flex items-center justify-center px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-lg shadow-sm transition text-xs sm:text-sm">
+                            Reporte Semanal
+                        </button>
+                        <button onclick="shareConsolidatedTicketsWA()" class="w-full sm:w-auto inline-flex items-center justify-center px-4 py-2.5 bg-amber-600 hover:bg-amber-700 text-white font-bold rounded-lg shadow-sm transition">
+                            Enviar Consolidado Final de Día
+                        </button>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                    <div class="bg-slate-50 border border-slate-200 rounded-xl p-5 shadow-sm space-y-4 h-fit">
+                        <h3 class="font-extrabold text-slate-800 text-base border-b border-slate-200 pb-2 flex items-center">
+                            <i class="fa-solid fa-ticket text-amber-500 mr-2"></i> Documentar Ticket Irregular
+                        </h3>
+                        <form id="ticketForm" onsubmit="saveTicket(event); return false;" class="space-y-4">
+                            <div>
+                                <label for="tBanqueraManual" class="block text-xs font-bold text-slate-700 uppercase">Banquera (Código o Nombre)</label>
+                                <input type="text" id="tBanqueraManual" required placeholder="Ej: Lisania (#382)" class="mt-1 block w-full rounded-lg border border-slate-300 py-2 px-3 text-sm focus:outline-none focus:ring-1 focus:ring-amber-500 bg-white font-bold">
+                            </div>
+                            
+                            <div class="grid grid-cols-2 gap-3">
+                                <div>
+                                    <label for="tNumero" class="block text-xs font-bold text-slate-700 uppercase">Número de Ticket</label>
+                                    <input type="text" id="tNumero" required placeholder="Ej: 4925003" class="mt-1 block w-full rounded-lg border border-slate-300 py-2 px-3 text-sm focus:outline-none focus:ring-1 focus:ring-amber-500 bg-white font-mono font-bold">
+                                </div>
+                                <div>
+                                    <label for="tJugadas" class="block text-xs font-bold text-slate-700 uppercase">Cantidad de Jugadas</label>
+                                    <input type="number" id="tJugadas" required placeholder="Ej: 30" class="mt-1 block w-full rounded-lg border border-slate-300 py-2 px-3 text-sm focus:outline-none focus:ring-1 focus:ring-amber-500 bg-white font-bold">
+                                </div>
+                            </div>
+
+                            <div>
+                                <label for="tFecha" class="block text-xs font-bold text-slate-700 uppercase">Fecha del Ticket</label>
+                                <input type="date" id="tFecha" required class="mt-1 block w-full rounded-lg border border-slate-300 py-2 px-3 text-xs focus:outline-none focus:ring-1 focus:ring-amber-500 bg-white">
+                            </div>
+
+                            <div class="bg-white p-3 rounded-lg border border-slate-200">
+                                <span class="block text-xs font-bold text-slate-700 uppercase mb-2">Tipos de Jugada Incluidos</span>
+                                <div class="grid grid-cols-3 gap-2">
+                                    <label class="flex items-center space-x-1.5 cursor-pointer">
+                                        <input type="checkbox" name="tTipoJugada" value="Quiniela" class="rounded text-amber-600 focus:ring-amber-500 h-4 w-4">
+                                        <span class="text-xs font-semibold text-slate-700">Quiniela</span>
+                                    </label>
+                                    <label class="flex items-center space-x-1.5 cursor-pointer">
+                                        <input type="checkbox" name="tTipoJugada" value="Pale" class="rounded text-amber-600 focus:ring-amber-500 h-4 w-4">
+                                        <span class="text-xs font-semibold text-slate-700">Pale</span>
+                                    </label>
+                                    <label class="flex items-center space-x-1.5 cursor-pointer">
+                                        <input type="checkbox" name="tTipoJugada" value="Tripleta" class="rounded text-amber-600 focus:ring-amber-500 h-4 w-4">
+                                        <span class="text-xs font-semibold text-slate-700">Tripleta</span>
+                                    </label>
+                                </div>
+                            </div>
+
+                            <div class="bg-white p-3 rounded-lg border border-slate-200">
+                                <span class="block text-xs font-bold text-slate-700 uppercase mb-2">Seleccionar Lotería(s)</span>
+                                <div class="grid grid-cols-2 gap-2 max-h-48 overflow-y-auto p-2 border border-slate-100 rounded bg-slate-50">
+                                    <label class="flex items-center space-x-2 text-xs">
+                                        <input type="checkbox" name="tLoterias" value="Anguila 9AM" class="rounded text-amber-600">
+                                        <span>Anguila 9AM</span>
+                                    </label>
+                                    <label class="flex items-center space-x-2 text-xs">
+                                        <input type="checkbox" name="tLoterias" value="Lotedom" class="rounded text-amber-600">
+                                        <span>Lotedom</span>
+                                    </label>
+                                    <label class="flex items-center space-x-2 text-xs">
+                                        <input type="checkbox" name="tLoterias" value="Primera 12PM" class="rounded text-amber-600">
+                                        <span>Primera 12PM</span>
+                                    </label>
+                                    <label class="flex items-center space-x-2 text-xs">
+                                        <input type="checkbox" name="tLoterias" value="Loteria Real" class="rounded text-amber-600">
+                                        <span>Loteria Real</span>
+                                    </label>
+                                    <label class="flex items-center space-x-2 text-xs">
+                                        <input type="checkbox" name="tLoterias" value="Nacional MD" class="rounded text-amber-600">
+                                        <span>Nacional MD</span>
+                                    </label>
+                                    <label class="flex items-center space-x-2 text-xs">
+                                        <input type="checkbox" name="tLoterias" value="LEIDSA Noche" class="rounded text-amber-600">
+                                        <span>LEIDSA Noche</span>
+                                    </label>
+                                </div>
+                                <input type="text" id="tOtraLoteria" placeholder="Otra lotería" class="mt-2 block w-full rounded border border-slate-300 py-1.5 px-3.5 text-xs bg-slate-50">
+                            </div>
+
+                            <div>
+                                <label for="tDetalles" class="block text-xs font-bold text-slate-700 uppercase">Detalles / Notas del Reporte</label>
+                                <input type="text" id="tDetalles" placeholder="Ej: Reportado por el supervisor" class="mt-1 block w-full rounded-lg border border-slate-300 py-2 px-3 text-sm focus:outline-none focus:ring-1 focus:ring-amber-500 bg-white">
+                            </div>
+
+                            <button type="submit" class="w-full inline-flex items-center justify-center px-4 py-2.5 bg-amber-600 hover:bg-amber-700 text-white font-bold rounded-lg shadow-sm transition text-xs sm:text-sm">
+                                Guardar Ticket Irregular
+                            </button>
+                        </form>
+                    </div>
+
+                    <div class="lg:col-span-2 space-y-4">
+                        <div class="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm">
+                            <div class="p-4 bg-slate-50 border-b border-slate-200 flex items-center justify-between">
+                                <div>
+                                    <h3 class="font-bold text-slate-800 text-sm">Reportes de Hoy</h3>
+                                    <p class="text-[11px] text-slate-555 font-semibold" id="ticketsTodayDateLabel"></p>
+                                </div>
+                                <span id="ticketsTodayCount" class="text-xs bg-amber-100 text-amber-800 px-2.5 py-0.5 rounded-full font-bold">0 Incidencias</span>
+                            </div>
+                            <div class="overflow-x-auto">
+                                <table class="w-full text-left border-collapse">
+                                    <thead>
+                                        <tr class="bg-slate-100 text-xs font-semibold text-slate-600 uppercase border-b border-slate-200">
+                                            <th class="py-3 px-4">Banquera (Manual)</th>
+                                            <th class="py-3 px-4">Boleto</th>
+                                            <th class="py-3 px-4">Jugadas / Tipo / Lotería</th>
+                                            <th class="py-3 px-4">Detalles</th>
+                                            <th class="py-3 px-4 text-center">Acciones</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="ticketsTodayTableBody" class="divide-y divide-slate-100 text-sm"></tbody>
+                                </table>
+                            </div>
+                        </div>
+
+                        <div class="bg-amber-50 border border-amber-200 rounded-xl p-4 flex flex-col justify-between items-start gap-4">
+                            <div>
+                                <h4 class="font-bold text-amber-955 text-sm">Resumen Consolidado de Incidencias (Hoy)</h4>
+                                <p class="text-xs text-amber-800 mt-0.5">Lista de boletos ingresados hoy por cada usuario para la auditoría de cierre.</p>
+                            </div>
+                            <div id="ticketsConsolidatedSummary" class="text-xs font-semibold text-amber-900 w-full grid grid-cols-1 md:grid-cols-2 gap-3"></div>
+                        </div>
+
+                        <div class="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm">
+                            <button type="button" onclick="toggleTicketsHistoryCollapse()" class="w-full p-4 bg-slate-100 border-b border-slate-200 flex items-center justify-between text-left focus:outline-none">
+                                <div>
+                                    <h3 class="font-bold text-slate-800 text-sm">Reportes de los Demás Días (Historial)</h3>
+                                    <p class="text-[10px] text-slate-500">Tickets registrados en fechas anteriores.</p>
+                                </div>
+                                <div class="flex items-center space-x-2">
+                                    <span id="ticketsHistoryCount" class="text-xs bg-slate-200 text-slate-700 px-2.5 py-0.5 rounded-full font-bold">0 Tickets</span>
+                                    <i id="ticketsHistoryArrow" class="fa-solid fa-chevron-down text-slate-500 transition-transform duration-200"></i>
+                                </div>
+                            </button>
+                            <div id="ticketsHistoryCollapseContent" class="hidden overflow-x-auto max-h-96 overflow-y-auto">
+                                <table class="w-full text-left border-collapse">
+                                    <thead>
+                                        <tr class="bg-slate-50 text-xs font-semibold text-slate-600 uppercase border-b border-slate-200">
+                                            <th class="py-2.5 px-4">Banquera (Manual)</th>
+                                            <th class="py-2.5 px-4">Boleto / Fecha</th>
+                                            <th class="py-2.5 px-4">Jugadas / Tipo / Lotería</th>
+                                            <th class="py-2.5 px-4">Detalles</th>
+                                            <th class="py-2.5 px-4 text-center">Acción</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="ticketsHistoryTableBody" class="divide-y divide-slate-100 text-xs"></tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- SECTION: REVISIÓN DE CUADRES -->
+            <section id="sec-revisiones" class="tab-content hidden">
+                <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
+                    <div>
+                        <h2 class="text-2xl font-black text-slate-900 tracking-tight">Control y Revisión de Cuadres</h2>
+                        <p class="text-sm text-slate-550">Registra qué grupos de WhatsApp de otros supervisores te toca auditar hoy.</p>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                    <div class="lg:col-span-2 space-y-4">
+                        <div class="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden">
+                            <div class="px-5 py-4 border-b border-slate-200 bg-slate-50 flex items-center justify-between">
+                                <h3 class="font-extrabold text-slate-800 text-sm flex items-center">
+                                    <i class="fa-solid fa-square-check text-indigo-600 mr-2"></i> Mi Lista de Revisión (Hoy)
+                                </h3>
+                                <span id="revisionesProgressLabel" class="text-xs bg-indigo-100 text-indigo-800 px-2.5 py-1 rounded-full font-black font-mono">0/0 completados</span>
+                            </div>
+                            
+                            <div class="p-4 space-y-3" id="revisionChecklistContainer"></div>
+                        </div>
+                    </div>
+
+                    <div class="bg-slate-50 border border-slate-200 rounded-xl p-5 shadow-sm space-y-4 h-fit">
+                        <h3 class="font-extrabold text-slate-800 text-sm border-b border-slate-200 pb-2 flex items-center">
+                            <i class="fa-solid fa-gear text-indigo-600 mr-2"></i> Mis Grupos Asignados
+                        </h3>
+                        
+                        <form id="grupoReviewForm" onsubmit="addGrupoARevisar(event); return false;" class="space-y-3">
+                            <div>
+                                <label for="newGroupName" class="block text-xs font-bold text-slate-700 uppercase">Nombre del Grupo a Supervisar</label>
+                                <div class="mt-1 flex gap-2">
+                                    <input type="text" id="newGroupName" placeholder="Ej: Grupo Juan Thomas" required class="block w-full rounded-lg border border-slate-300 py-2 px-3 text-sm focus:outline-none focus:ring-1 focus:ring-indigo-500 bg-white font-semibold">
+                                    <button type="submit" class="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg font-bold transition text-xs">
+                                        Agregar
+                                    </button>
+                                </div>
+                            </div>
+                        </form>
+
+                        <div class="pt-2">
+                            <span class="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-2">Importar rápidamente de tus rutas:</span>
+                            <div class="flex flex-wrap gap-1.5" id="sugerenciasRutasContainer"></div>
+                        </div>
+
+                        <div class="border-t border-slate-200 pt-3">
+                            <span class="text-[11px] font-extrabold text-slate-600 uppercase tracking-wider block mb-2">Mis grupos configurados:</span>
+                            <div class="space-y-1.5 max-h-56 overflow-y-auto pr-1" id="configGruposList"></div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- SECTION: USUARIOS Y ROLES (SOLO ADMIN) -->
+            <section id="sec-usuarios" class="tab-content hidden">
+                <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
+                    <div>
+                        <h2 class="text-2xl font-black text-slate-900 tracking-tight">Gestión de Usuarios y Roles</h2>
+                        <p class="text-sm text-slate-500">Crea credenciales, asigna roles (Admin, Supervisor, Mensajero, Vendedor) y controla permisos de acceso.</p>
+                    </div>
+                    <button onclick="openUsuarioModal()" class="w-full sm:w-auto inline-flex items-center justify-center px-4 py-2.5 bg-purple-700 hover:bg-purple-800 text-white font-bold rounded-lg shadow-sm transition">
+                        <i class="fa-solid fa-user-plus mr-2"></i> Crear Nuevo Usuario
+                    </button>
+                </div>
+
+                <div class="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm">
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-left border-collapse">
+                            <thead>
+                                <tr class="bg-slate-100 text-xs font-semibold text-slate-600 uppercase border-b border-slate-200">
+                                    <th class="py-3 px-4">Nombre Completo</th>
+                                    <th class="py-3 px-4">Usuario</th>
+                                    <th class="py-3 px-4">Rol Asignado</th>
+                                    <th class="py-3 px-4">Ruta / Banca Vinculada</th>
+                                    <th class="py-3 px-4 text-center">Acciones</th>
+                                </tr>
+                            </thead>
+                            <tbody id="usuariosTableBody" class="divide-y divide-slate-100 text-sm"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </section>
+
+            <!-- SECTION: BITÁCORA DE EVENTOS (EVENT LOG - SOLO ADMIN) -->
+            <section id="sec-bitacora" class="tab-content hidden">
+                <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
+                    <div>
+                        <h2 class="text-2xl font-black text-slate-900 tracking-tight flex items-center gap-2">
+                            <i class="fa-solid fa-list-check text-teal-600"></i> Bitácora Auditada de Eventos
+                        </h2>
+                        <p class="text-sm text-slate-500">Histórico completo de acciones de usuarios, inicios de sesión, cierres, modificaciones y cobros en tiempo real.</p>
+                    </div>
+                    <div class="flex gap-2">
+                        <button onclick="clearLogs()" class="px-3 py-2 bg-slate-200 hover:bg-slate-300 text-slate-700 text-xs font-bold rounded-lg transition">
+                            <i class="fa-solid fa-eraser mr-1"></i> Limpiar Bitácora
+                        </button>
+                    </div>
+                </div>
+
+                <div class="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm">
+                    <div class="p-4 bg-slate-50 border-b border-slate-200 flex flex-col sm:flex-row justify-between items-center gap-3">
+                        <div class="relative flex-1 w-full max-w-md">
+                            <span class="absolute inset-y-0 left-0 flex items-center pl-3 text-slate-400">
+                                <i class="fa-solid fa-magnifying-glass text-xs"></i>
+                            </span>
+                            <input type="text" id="logSearch" oninput="renderLogs()" placeholder="Buscar en la bitácora por usuario, acción o detalle..." class="block w-full pl-10 pr-3 py-2 border border-slate-300 rounded-lg text-xs bg-white focus:outline-none focus:ring-1 focus:ring-teal-500">
+                        </div>
+                        <select id="logCategoryFilter" onchange="renderLogs()" class="rounded-lg border border-slate-300 py-2 px-3 text-xs bg-white font-bold text-slate-700">
+                            <option value="todos">Todas las Categorías</option>
+                            <option value="Seguridad">Seguridad e Inicios</option>
+                            <option value="Cuadres y Cobros">Cuadres y Cobros</option>
+                            <option value="Banqueras y Equipos">Banqueras y Equipos</option>
+                            <option value="Saldos y Pendientes">Saldos y Pendientes</option>
+                            <option value="Tickets e Incidencias">Tickets e Incidencias</option>
+                            <option value="Reportes">Reportes y Ajustes</option>
+                        </select>
+                    </div>
+
+                    <div class="overflow-x-auto max-h-[500px] overflow-y-auto">
+                        <table class="w-full text-left border-collapse">
+                            <thead>
+                                <tr class="bg-slate-100 text-[11px] font-bold text-slate-600 uppercase border-b border-slate-200 sticky top-0 bg-slate-100">
+                                    <th class="py-2.5 px-4">Fecha / Hora</th>
+                                    <th class="py-2.5 px-4">Usuario (Rol)</th>
+                                    <th class="py-2.5 px-4">Categoría</th>
+                                    <th class="py-2.5 px-4">Acción Realizada</th>
+                                    <th class="py-2.5 px-4">Detalles Operativos</th>
+                                </tr>
+                            </thead>
+                            <tbody id="logsTableBody" class="divide-y divide-slate-100 text-xs"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </section>
+
+        </main>
+    </div>
+
+    <!-- MODALES DE LA APLICACION -->
+    
+    <!-- MODAL: CONFIGURACION FIREBASE NUBE -->
+    <div id="firebaseConfigModal" class="fixed inset-0 bg-slate-900/60 z-50 flex items-center justify-center p-4 hidden">
+        <div class="bg-white rounded-xl shadow-2xl max-w-lg w-full overflow-hidden transform transition-all">
+            <div class="bg-emerald-800 px-6 py-4 flex items-center justify-between text-white">
+                <h3 class="font-bold text-base flex items-center gap-2">
+                    <i class="fa-solid fa-cloud"></i> Configurar Base de Datos Nube (Firebase Gratis)
+                </h3>
+                <button type="button" onclick="closeFirebaseConfigModal()" class="text-emerald-200 hover:text-white">
+                    <i class="fa-solid fa-xmark text-lg"></i>
+                </button>
+            </div>
+            <form id="firebaseConfigForm" onsubmit="saveFirebaseConfig(event); return false;" class="p-6 space-y-4">
+                <p class="text-xs text-slate-600 leading-relaxed">
+                    Ingresa los datos de tu proyecto gratuito de Firebase Firestore para activar la sincronización en tiempo real entre supervisores y mensajeros ($0 USD/mes).
+                </p>
+
+                <div>
+                    <label for="fbConfigJson" class="block text-xs font-bold text-slate-700 uppercase">Pegar firebaseConfig JSON (Opción Rápida)</label>
+                    <textarea id="fbConfigJson" rows="3" placeholder='{ "apiKey": "...", "authDomain": "...", "projectId": "..." }' class="mt-1 block w-full rounded-lg border border-slate-300 py-2 px-3 text-xs font-mono bg-slate-50 focus:bg-white focus:outline-none focus:ring-1 focus:ring-emerald-500"></textarea>
+                </div>
+
+                <div class="text-center text-xs font-bold text-slate-400 uppercase tracking-wider my-1">- O ingresa manualmente -</div>
+
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label for="fbApiKey" class="block text-[10px] font-bold text-slate-700 uppercase">apiKey *</label>
+                        <input type="text" id="fbApiKey" placeholder="AIzaSyD..." class="mt-0.5 block w-full rounded-lg border border-slate-300 py-1.5 px-2.5 text-xs font-mono">
+                    </div>
+                    <div>
+                        <label for="fbProjectId" class="block text-[10px] font-bold text-slate-700 uppercase">projectId *</label>
+                        <input type="text" id="fbProjectId" placeholder="recolector-banca" class="mt-0.5 block w-full rounded-lg border border-slate-300 py-1.5 px-2.5 text-xs font-mono">
+                    </div>
+                </div>
+
+                <div>
+                    <label for="fbAuthDomain" class="block text-[10px] font-bold text-slate-700 uppercase">authDomain</label>
+                    <input type="text" id="fbAuthDomain" placeholder="recolector-banca.firebaseapp.com" class="mt-0.5 block w-full rounded-lg border border-slate-300 py-1.5 px-2.5 text-xs font-mono">
+                </div>
+
+                <div class="flex justify-between items-center pt-3 border-t">
+                    <button type="button" onclick="disconnectFirebase()" class="px-3 py-1.5 text-xs font-bold text-rose-600 bg-rose-50 hover:bg-rose-100 rounded-lg">
+                        Desconectar Nube
+                    </button>
+                    <div class="flex gap-2">
+                        <button type="button" onclick="closeFirebaseConfigModal()" class="px-4 py-2 text-xs font-bold text-slate-600 bg-slate-100 rounded-lg">Cancelar</button>
+                        <button type="submit" class="px-4 py-2 text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 rounded-lg shadow">Conectar y Sincronizar</button>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- MODAL: USUARIOS Y ROLES -->
+    <div id="usuarioModal" class="fixed inset-0 bg-slate-900/60 z-50 flex items-center justify-center p-4 hidden">
+        <div class="bg-white rounded-xl shadow-2xl max-w-md w-full overflow-hidden transform transition-all">
+            <div class="bg-purple-800 px-6 py-4 flex items-center justify-between text-white">
+                <h3 id="usuarioModalTitle" class="font-bold text-base">Crear Usuario del Sistema</h3>
+                <button type="button" onclick="closeUsuarioModal()" class="text-purple-200 hover:text-white">
+                    <i class="fa-solid fa-xmark text-lg"></i>
+                </button>
+            </div>
+            <form id="usuarioForm" onsubmit="saveUsuario(event); return false;" class="p-6 space-y-4">
+                <input type="hidden" id="uId">
+                <div>
+                    <label for="uNombre" class="block text-xs font-bold text-slate-700 uppercase">Nombre Completo *</label>
+                    <input type="text" id="uNombre" required placeholder="Ej: Juan Pérez" class="mt-1 block w-full rounded-lg border border-slate-300 py-2 px-3 text-xs bg-white font-semibold">
+                </div>
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label for="uUsername" class="block text-xs font-bold text-slate-700 uppercase">Usuario *</label>
+                        <input type="text" id="uUsername" required placeholder="Ej: jperez" class="mt-1 block w-full rounded-lg border border-slate-300 py-2 px-3 text-xs bg-white font-bold">
+                    </div>
+                    <div>
+                        <label for="uPassword" class="block text-xs font-bold text-slate-700 uppercase">Contraseña *</label>
+                        <input type="text" id="uPassword" required placeholder="123" class="mt-1 block w-full rounded-lg border border-slate-300 py-2 px-3 text-xs bg-white font-mono">
+                    </div>
+                </div>
+                <div>
+                    <label for="uRole" class="block text-xs font-bold text-slate-700 uppercase">Rol Operativo *</label>
+                    <select id="uRole" required class="mt-1 block w-full rounded-lg border border-slate-300 py-2 px-3 text-xs bg-white font-bold text-purple-900">
+                        <option value="Administrador">Administrador (Acceso Total)</option>
+                        <option value="Supervisor">Supervisor (Control Operativo)</option>
+                        <option value="Mensajero">Mensajero (Rutas y Cobros)</option>
+                        <option value="Vendedor">Vendedor (Banca de Lotería)</option>
+                    </select>
+                </div>
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label for="uRuta" class="block text-xs font-bold text-slate-700 uppercase">Ruta Asignada</label>
+                        <select id="uRuta" class="mt-1 block w-full rounded-lg border border-slate-300 py-1.5 px-3 text-xs bg-white font-semibold">
+                            <option value="">Todas las Rutas</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label for="uBanqueraId" class="block text-xs font-bold text-slate-700 uppercase">Banca Vinculada</label>
+                        <select id="uBanqueraId" class="mt-1 block w-full rounded-lg border border-slate-300 py-1.5 px-3 text-xs bg-white font-semibold">
+                            <option value="">Ninguna</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="flex justify-end space-x-2 pt-3 border-t">
+                    <button type="button" onclick="closeUsuarioModal()" class="px-4 py-2 text-xs font-bold text-slate-600 bg-slate-100 rounded-lg">Cancelar</button>
+                    <button type="submit" class="px-4 py-2 text-xs font-bold text-white bg-purple-700 rounded-lg">Guardar Usuario</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- MODAL: REGISTRAR/EDITAR BANQUERA -->
+    <div id="banqueraModal" class="fixed inset-0 bg-slate-900/60 z-50 flex items-center justify-center p-4 hidden">
+        <div class="bg-white rounded-xl shadow-2xl max-w-lg w-full overflow-hidden transform transition-all">
+            <div class="bg-primary-800 px-6 py-4 flex items-center justify-between text-white">
+                <h3 id="banqueraModalTitle" class="font-bold text-base">Registrar Nueva Banquera</h3>
+                <button type="button" onclick="closeBanqueraModal()" class="text-primary-200 hover:text-white">
+                    <i class="fa-solid fa-xmark text-lg"></i>
+                </button>
+            </div>
+            <form id="banqueraForm" onsubmit="saveBanquera(event); return false;" class="p-6 space-y-4 max-h-[85vh] overflow-y-auto">
+                <input type="hidden" id="banqueraId">
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label for="bNombre" class="block text-xs font-bold text-slate-700 uppercase">Nombre Completo</label>
+                        <input type="text" id="bNombre" required class="mt-1 block w-full rounded-lg border border-slate-300 py-1.5 px-3 text-xs bg-white">
+                    </div>
+                    <div>
+                        <label for="bUsuario" class="block text-xs font-bold text-slate-700 uppercase font-mono">Código / ID</label>
+                        <input type="text" id="bUsuario" required placeholder="Ej: #229" class="mt-1 block w-full rounded-lg border border-slate-300 py-1.5 px-3 text-xs font-mono bg-white font-bold">
+                    </div>
+                </div>
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label for="bRuta" class="block text-xs font-bold text-slate-700 uppercase">Ruta / Sector</label>
+                        <select id="bRuta" required class="mt-1 block w-full rounded-lg border border-slate-300 py-1.5 px-3 text-xs bg-white font-semibold">
+                        </select>
+                    </div>
+                    <div>
+                        <label for="bTelefono" class="block text-xs font-bold text-slate-700 uppercase">Teléfono</label>
+                        <input type="text" id="bTelefono" required class="mt-1 block w-full rounded-lg border border-slate-300 py-1.5 px-3 text-xs bg-white">
+                    </div>
+                </div>
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label for="bEstado" class="block text-xs font-bold text-slate-700 uppercase">Estado Operativo</label>
+                        <select id="bEstado" required class="mt-1 block w-full rounded-lg border border-slate-300 py-1.5 px-3 text-xs bg-white font-bold text-primary-800">
+                            <option value="Activa">Activa</option>
+                            <option value="Cancelada">Inactiva / Cancelada</option>
+                            <option value="Abandonó">Abandonó</option>
+                            <option value="Se mudó">Se mudó</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label for="bEquipo" class="block text-xs font-bold text-slate-700 uppercase">Equipo / Terminal</label>
+                        <input type="text" id="bEquipo" required placeholder="Ej: Celular Android #3" class="mt-1 block w-full rounded-lg border border-slate-300 py-1.5 px-3 text-xs bg-white">
+                    </div>
+                </div>
+                <div>
+                    <label for="bDireccion" class="block text-xs font-bold text-slate-700 uppercase">Dirección Física</label>
+                    <input type="text" id="bDireccion" class="mt-1 block w-full rounded-lg border border-slate-300 py-1.5 px-3 text-xs bg-white">
+                </div>
+
+                <div class="border-t pt-3 bg-slate-50 -mx-6 px-6 pb-4">
+                    <span class="block text-xs font-extrabold text-slate-800 uppercase tracking-wide mb-3 flex items-center gap-1.5 text-primary-800">
+                        <i class="fa-solid fa-money-check-dollar"></i> Esquema de Pago y Ganancias de la Banquera
+                    </span>
+                    
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-3 mb-3">
+                        <div>
+                            <label for="bTipoPago" class="block text-[11px] font-bold text-slate-700 uppercase">Forma de Pago Principal</label>
+                            <select id="bTipoPago" onchange="toggleFormaPagoFields()" class="mt-1 block w-full rounded-lg border border-slate-300 py-1.5 px-2.5 text-xs bg-white focus:outline-none">
+                                <option value="Comision">Comisión por Ventas de Lotería</option>
+                                <option value="Sueldo">Sueldo Fijo</option>
+                                <option value="Mixto">Mixto (Sueldo + Comisión)</option>
+                                <option value="Especial">Esquema Especial</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label for="bFrecuenciaPago" class="block text-[11px] font-bold text-slate-700 uppercase">Frecuencia de Liquidación</label>
+                            <select id="bFrecuenciaPago" class="mt-1 block w-full rounded-lg border border-slate-300 py-1.5 px-2.5 text-xs bg-white focus:outline-none">
+                                <option value="En Cada Cuadre" selected>En Cada Cuadre</option>
+                                <option value="Semanal">Semanal</option>
+                                <option value="Quincenal">Quincenal</option>
+                                <option value="Mensual">Mensual</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                        <div>
+                            <label for="bSueldoMonto" class="block text-[11px] font-bold text-slate-700 uppercase">Sueldo Fijo ($)</label>
+                            <input type="number" step="0.01" id="bSueldoMonto" placeholder="0.00" class="mt-1 block w-full rounded-lg border border-slate-300 py-1.5 px-2.5 text-xs bg-white font-bold text-slate-900 focus:outline-none">
+                        </div>
+                        <div>
+                            <label for="bBeneficioMes" class="block text-[11px] font-bold text-slate-700 uppercase">Beneficio por Mes ($)</label>
+                            <input type="number" step="0.01" id="bBeneficioMes" placeholder="0.00" class="mt-1 block w-full rounded-lg border border-slate-300 py-1.5 px-2 text-xs bg-white font-bold text-indigo-900 focus:outline-none">
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-2 gap-3 mt-3">
+                        <div>
+                            <label for="bPorciento" class="block text-[11px] font-bold text-slate-700 uppercase">Comisión Lotería (%)</label>
+                            <input type="number" id="bPorciento" class="mt-1 block w-full rounded-lg border border-slate-300 py-1.5 px-2 text-xs bg-white font-bold focus:outline-none" value="20">
+                        </div>
+                        <div>
+                            <label for="bPorcRecarga" class="block text-[11px] font-bold text-slate-700 uppercase">Comisión Recarga (%)</label>
+                            <input type="number" id="bPorcRecarga" class="mt-1 block w-full rounded-lg border border-slate-300 py-1.5 px-2 text-xs bg-white font-bold focus:outline-none" value="0">
+                        </div>
+                    </div>
+                </div>
+
+                <div class="flex justify-end space-x-2 pt-3 border-t">
+                    <button type="button" onclick="closeBanqueraModal()" class="px-4 py-2 text-xs font-bold text-slate-600 bg-slate-100 rounded-lg">Cancelar</button>
+                    <button type="submit" class="px-4 py-2 text-xs font-bold text-white bg-primary-600 rounded-lg">Guardar</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- QUICK MODAL: CAMBIAR EQUIPO -->
+    <div id="quickEquipoModal" class="fixed inset-0 bg-slate-900/60 z-50 flex items-center justify-center p-4 hidden">
+        <div class="bg-white rounded-xl shadow-2xl max-w-sm w-full overflow-hidden transform transition-all">
+            <div class="bg-slate-800 px-6 py-4 flex items-center justify-between text-white">
+                <h3 class="font-bold text-sm uppercase tracking-wider">Reasignar Equipo Dañado</h3>
+                <button type="button" onclick="closeQuickEquipoModal()" class="text-slate-400 hover:text-white">
+                    <i class="fa-solid fa-xmark text-lg"></i>
+                </button>
+            </div>
+            <div class="p-6 space-y-4">
+                <input type="hidden" id="quickEqBanqueraId">
+                <div>
+                    <p class="text-xs text-slate-555 font-semibold mb-1" id="quickEqBanqueraLabel"></p>
+                    <p class="text-xs text-slate-700 bg-slate-100 p-2 rounded mb-3" id="quickEqActualLabel"></p>
+                    <label for="quickEqNuevo" class="block text-xs font-bold text-slate-700 uppercase">Nuevo Dispositivo o Serial</label>
+                    <input type="text" id="quickEqNuevo" placeholder="Ej: Nueva terminal" class="mt-1 block w-full rounded-lg border border-slate-300 py-2 px-3 text-sm bg-white font-semibold">
+                </div>
+                <div class="flex justify-end space-x-2">
+                    <button onclick="closeQuickEquipoModal()" class="px-4 py-2 text-xs font-semibold bg-slate-100 rounded-lg">Cancelar</button>
+                    <button onclick="saveQuickEquipo()" class="px-4 py-2 text-xs font-bold text-white bg-primary-600 rounded-lg">Actualizar Terminal</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL: REGISTRAR PENDIENTE -->
+    <div id="pendienteModal" class="fixed inset-0 bg-slate-900/60 z-50 flex items-center justify-center p-4 hidden">
+        <div class="bg-white rounded-xl shadow-2xl max-w-md w-full overflow-hidden transform transition-all">
+            <div class="bg-rose-800 px-6 py-4 flex items-center justify-between text-white">
+                <h3 class="font-bold text-base">Registrar Nuevo Pendiente</h3>
+                <button type="button" onclick="closePendienteModal()" class="text-rose-200 hover:text-white">
+                    <i class="fa-solid fa-xmark text-lg"></i>
+                </button>
+            </div>
+            <form id="pendienteForm" onsubmit="savePendiente(event); return false;" class="p-6 space-y-4">
+                <div>
+                    <label for="pBanquera" class="block text-xs font-bold text-slate-700 uppercase">Seleccionar Persona Activa / Código</label>
+                    <select id="pBanquera" required class="mt-1 block w-full rounded-lg border border-slate-300 py-2 px-3 text-sm bg-white font-bold">
+                    </select>
+                </div>
+                <div>
+                    <label for="pCategoria" class="block text-xs font-bold text-slate-700 uppercase">Categoría de Pendiente</label>
+                    <select id="pCategoria" required class="mt-1 block w-full rounded-lg border border-slate-300 py-2 px-3 text-sm bg-white font-semibold">
+                        <option value="Ruta">Pendiente de Ruta (Activo)</option>
+                        <option value="Viejo">Saldo Histórico (Antiguo)</option>
+                    </select>
+                </div>
+                <div>
+                    <label for="pMonto" class="block text-xs font-bold text-slate-700 uppercase">Monto Total ($)</label>
+                    <input type="number" step="0.01" id="pMonto" required class="mt-1 block w-full rounded-lg border border-slate-300 py-2 px-3 text-sm bg-white font-bold">
+                </div>
+                <div>
+                    <label for="pNotas" class="block text-xs font-bold text-slate-700 uppercase">Notas Especiales</label>
+                    <input type="text" id="pNotas" class="mt-1 block w-full rounded-lg border border-slate-300 py-2 px-3 text-sm bg-white font-medium" placeholder="Ej: Arrastre de cuadre...">
+                </div>
+                <div class="flex justify-end space-x-2 pt-3 border-t">
+                    <button type="button" onclick="closePendienteModal()" class="px-4 py-2 text-xs font-bold text-slate-600 bg-slate-100 rounded-lg">Cancelar</button>
+                    <button type="submit" class="px-4 py-2 text-xs font-bold text-white bg-rose-700 rounded-lg">Guardar Balance</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- MODAL: REGISTRAR ENTREGA / TRANSACCION BANCARIA -->
+    <div id="entregaModal" class="fixed inset-0 bg-slate-900/60 z-50 flex items-center justify-center p-4 hidden">
+        <div class="bg-white rounded-xl shadow-2xl max-w-md w-full overflow-hidden transform transition-all">
+            <div class="bg-purple-900 px-6 py-4 flex items-center justify-between text-white">
+                <h3 class="font-bold text-base flex items-center">Reportar Transacción Bancaria o Entrega</h3>
+                <button type="button" onclick="closeEntregaModal()" class="text-purple-200 hover:text-white">
+                    <i class="fa-solid fa-xmark text-lg"></i>
+                </button>
+            </div>
+            <form id="entregaForm" onsubmit="saveEntrega(event); return false;" class="p-6 space-y-4">
+                <div>
+                    <label for="eBanquera" class="block text-xs font-bold text-slate-700 uppercase">Banquera Activa que reporta</label>
+                    <select id="eBanquera" required class="mt-1 block w-full rounded-lg border border-slate-300 py-2 px-3 text-sm bg-white font-bold">
+                    </select>
+                </div>
+                <div>
+                    <label for="eTipoTransaccion" class="block text-xs font-bold text-slate-700 uppercase">Tipo de Reporte</label>
+                    <select id="eTipoTransaccion" class="mt-1 block w-full rounded-lg border border-slate-300 py-2 px-3 text-sm bg-white font-semibold">
+                        <option value="transferencia">Transferencia Bancaria Directa</option>
+                        <option value="deposito">Depósito en Ventanilla</option>
+                        <option value="efectivo">Efectivo Entregado</option>
+                    </select>
+                </div>
+                <div>
+                    <label for="eMonto" class="block text-xs font-bold text-slate-700 uppercase">Monto Reportado ($)</label>
+                    <input type="number" step="0.01" id="eMonto" required class="mt-1 block w-full rounded-lg border border-slate-300 py-2 px-3 text-sm bg-white font-bold" placeholder="Ej: 21017">
+                </div>
+                <div>
+                    <label for="eNotas" class="block text-xs font-bold text-slate-700 uppercase">Comentarios / Banco / Referencia</label>
+                    <input type="text" id="eNotas" class="mt-1 block w-full rounded-lg border border-slate-300 py-2 px-3 text-sm bg-white font-semibold" placeholder="Ej: Banreservas Ref: 98127">
+                </div>
+                <div class="flex justify-end space-x-2 pt-3 border-t">
+                    <button type="button" onclick="closeEntregaModal()" class="px-4 py-2 text-xs font-bold text-slate-600 bg-slate-100 rounded-lg">Cancelar</button>
+                    <button type="submit" class="px-4 py-2 text-xs font-bold text-white bg-purple-700 rounded-lg">Confirmar Reporte</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- MODAL: EDITAR SALDO -->
+    <div id="saldoEditModal" class="fixed inset-0 bg-slate-900/60 z-50 flex items-center justify-center p-4 hidden">
+        <div class="bg-white rounded-xl shadow-2xl max-w-sm w-full overflow-hidden transform transition-all">
+            <div class="bg-slate-800 px-6 py-4 flex items-center justify-between text-white">
+                <h3 class="font-bold text-sm uppercase tracking-wide">Editar Balance de Cuenta</h3>
+                <button type="button" onclick="closeSaldoEditModal()" class="text-slate-400 hover:text-white">
+                    <i class="fa-solid fa-xmark text-lg"></i>
+                </button>
+            </div>
+            <div class="p-6 space-y-4">
+                <input type="hidden" id="editSaldoId">
+                <div>
+                    <p class="text-xs text-slate-555 font-semibold mb-1" id="editSaldoBanqueraLabel"></p>
+                    <label for="editSaldoMonto" class="block text-xs font-bold text-slate-700 uppercase">Balance Restante ($)</label>
+                    <input type="number" step="0.01" id="editSaldoMonto" class="mt-1 block w-full rounded-lg border border-slate-300 py-2 px-3 text-sm bg-white font-bold">
+                </div>
+                <div class="flex justify-end space-x-2">
+                    <button onclick="closeSaldoEditModal()" class="px-4 py-2 text-xs font-semibold bg-slate-100 rounded-lg">Cancelar</button>
+                    <button onclick="saveSaldoRestante()" class="px-4 py-2 text-xs font-bold text-white bg-primary-600 rounded-lg">Actualizar Saldo</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL: COMPARTIR REPORTE DE RUTA WHATSAPP -->
+    <div id="shareRouteModal" class="fixed inset-0 bg-slate-900/60 z-50 flex items-center justify-center p-4 hidden">
+        <div class="bg-white rounded-xl shadow-2xl max-w-sm w-full overflow-hidden transform transition-all">
+            <div class="bg-emerald-800 px-6 py-4 flex items-center justify-between text-white">
+                <h3 class="font-bold text-sm uppercase tracking-wide flex items-center">Reporte de Ruta WhatsApp</h3>
+                <button type="button" onclick="closeShareRouteModal()" class="text-emerald-100 hover:text-white">
+                    <i class="fa-solid fa-xmark text-lg"></i>
+                </button>
+            </div>
+            <div class="p-6 space-y-4">
+                <div>
+                    <label for="shareRouteSelect" class="block text-xs font-bold text-slate-700 uppercase">Seleccionar Ruta Operativa</label>
+                    <select id="shareRouteSelect" class="mt-1.5 block w-full rounded-lg border border-slate-300 py-2 px-3 text-sm bg-white focus:ring-emerald-500 focus:border-emerald-500 font-bold">
+                    </select>
+                    <p class="text-[10px] text-slate-555 mt-1">Este reporte recopila todos los saldos vigentes y activos de las banqueras de la ruta.</p>
+                </div>
+                <div class="flex justify-end space-x-2 pt-2">
+                    <button onclick="closeShareRouteModal()" class="px-4 py-2 text-xs font-semibold bg-slate-100 rounded-lg">Cancelar</button>
+                    <button onclick="generateAndShareRouteReport()" class="px-4 py-2 text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 rounded-lg flex items-center">Generar y Enviar</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- PREMIUM CUSTOM CONFIRM MODAL -->
+    <div id="confirmModal" class="fixed inset-0 bg-slate-900/65 z-55 flex items-center justify-center p-4 hidden">
+        <div class="bg-white rounded-xl shadow-2xl max-w-sm w-full overflow-hidden transform transition-all border border-slate-200">
+            <div class="bg-slate-800 px-5 py-3 text-white flex items-center justify-between">
+                <span class="font-bold text-sm uppercase tracking-wider flex items-center">Confirmación</span>
+                <button type="button" onclick="closeConfirmModal()" class="text-slate-400 hover:text-white"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <div class="p-5 space-y-4">
+                <p id="confirmModalMsg" class="text-slate-700 text-xs font-medium leading-relaxed"></p>
+                <div class="flex justify-end space-x-2 pt-2">
+                    <button id="confirmCancelBtn" onclick="closeConfirmModal()" class="px-4 py-2 text-xs font-semibold bg-slate-100 hover:bg-slate-200 rounded-lg text-slate-600">Cancelar</button>
+                    <button id="confirmOkBtn" onclick="executeConfirmAction()" class="px-4 py-2 text-xs font-bold text-white bg-rose-600 hover:bg-rose-700 rounded-lg shadow">Confirmar</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- FOOTER -->
+    <footer class="bg-slate-900 text-slate-400 py-4 text-center text-xs mt-12">
+        <p>&copy; 2026 RecolectorBanca. Control simplificado con Sincronización en la Nube Firebase.</p>
+    </footer>
+
+    <!-- JAVASCRIPT STATE, AUTHENTICATION, FIREBASE SYNC AND APPLICATION LOGIC -->
+    <script>
+        const DATA_KEY = "recolector_banca_master_2026_v6";
+        const FIREBASE_CONFIG_KEY = "recolector_firebase_config_key_v1";
+
+        const DEFAULT_FIREBASE_CONFIG = {
+            apiKey: "AIzaSyBb027GgTSAFSIxlorEw8_zbf9-gpfv9qM",
+            authDomain: "recolector-banca.firebaseapp.com",
+            projectId: "recolector-banca",
+            storageBucket: "recolector-banca.firebasestorage.app",
+            messagingSenderId: "1021415865847",
+            appId: "1:1021415865847:web:de1e7f50d67ed3665502f2"
+        };
+
+        const REAL_INITIAL_DATA = {
+            users: [
+                { id: "u_1", nombre: "Administrador Sistema", username: "admin", password: "123", role: "Administrador", ruta: "", banqueraId: "" },
+                { id: "u_2", nombre: "Carlos Supervisor", username: "supervisor", password: "123", role: "Supervisor", ruta: "Ruta-Alcarrizos #3", banqueraId: "" },
+                { id: "u_3", nombre: "Pedro Ortiz", username: "pedro", password: "123", role: "Mensajero", ruta: "Ruta-Alcarrizos #3", banqueraId: "" },
+                { id: "u_4", nombre: "Yamilka Perez", username: "yamilka", password: "123", role: "Vendedor", ruta: "Ruta-Alcarrizos #3", banqueraId: "b_1" }
+            ],
+            banqueras: [
+                { id: "b_1", nombre: "Col. Caminante", usuario: "#930", ruta: "Ruta-Alcarrizos #3", telefono: "8095551234", estado: "Activa", equipo: "Android Terminal #1", tipoPago: "Comision", porciento: 20, porcRecarga: 5, sueldoMonto: 0, beneficioMes: 0, frecuenciaPago: "En Cada Cuadre" },
+                { id: "b_2", nombre: "Aracelys", usuario: "#1198", ruta: "Ruta-Alcarrizos #3", telefono: "8095555678", estado: "Activa", equipo: "Android Terminal #2", tipoPago: "Comision", porciento: 20, porcRecarga: 5, sueldoMonto: 0, beneficioMes: 0, frecuenciaPago: "En Cada Cuadre" }
+            ],
+            rutas: [
+                { id: "r_1", nombre: "Ruta-Alcarrizos #3", descripcion: "Frecuencia Diaria", mensajero: "Pedro Ortiz" }
+            ],
+            pendientes: [],
+            cuadres: [],
+            tickets: [],
+            gruposARevisar: [
+                { id: "g_1", nombre: "Grupo Juan Thomas" },
+                { id: "g_2", nombre: "Ruta-Alcarrizos #3" }
+            ],
+            revisionesDiarias: [],
+            reportesAjustesManuales: [],
+            logs: []
+        };
+
+        let appState = {
+            currentUser: null,
+            users: [],
+            banqueras: [],
+            pendientes: [],
+            cuadres: [],
+            rutas: [],
+            tickets: [],
+            gruposARevisar: [],
+            revisionesDiarias: [],
+            reportesAjustesManuales: [],
+            cuadreConceptosManuales: [],
+            cuadreModeResultado: 'gana',
+            logs: []
+        };
+
+        let dbFirebase = null;
+        let isFirebaseActive = false;
+        let unsubscribeFirestore = null;
+
+        function initFirebaseIfConfigured() {
+            const storedConfig = localStorage.getItem(FIREBASE_CONFIG_KEY);
+            const statusBadge = document.getElementById('dbStatusBadge');
+            const statusLabel = document.getElementById('cloudStatusBtnLabel');
+
+            let configObj = DEFAULT_FIREBASE_CONFIG;
+            if (storedConfig) {
+                try {
+                    const parsed = JSON.parse(storedConfig);
+                    if (parsed && parsed.apiKey && parsed.projectId) {
+                        configObj = parsed;
+                    }
+                } catch(e) {}
+            }
+
+            try {
+                if (!firebase.apps.length) {
+                    firebase.initializeApp(configObj);
+                }
+                dbFirebase = firebase.firestore();
+                isFirebaseActive = true;
+
+                if (statusBadge) {
+                    statusBadge.className = "inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold bg-emerald-100 text-emerald-800 animate-pulse";
+                    statusBadge.innerHTML = `<span class="w-1.5 h-1.5 mr-1.5 rounded-full bg-emerald-500"></span> Nube Firebase Activa`;
+                }
+                if (statusLabel) statusLabel.innerText = "Nube Conectada";
+
+                listenToFirestoreChanges();
+                return;
+            } catch(e) {
+                console.error("Error al inicializar Firebase:", e);
+            }
+
+            isFirebaseActive = false;
+            if (statusBadge) {
+                statusBadge.className = "inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold bg-slate-200 text-slate-700";
+                statusBadge.innerHTML = `<span class="w-1.5 h-1.5 mr-1.5 rounded-full bg-slate-400"></span> Base Local Activa`;
+            }
+            if (statusLabel) statusLabel.innerText = "Conectar Nube";
+        }
+
+        function listenToFirestoreChanges() {
+            if (!dbFirebase) return;
+            if (unsubscribeFirestore) unsubscribeFirestore();
+
+            unsubscribeFirestore = dbFirebase.collection("recolector_master").doc("app_state").onSnapshot(doc => {
+                if (doc.exists) {
+                    const data = doc.data();
+                    if (data && data.appState) {
+                        const loggedUser = appState.currentUser;
+                        appState = data.appState;
+                        appState.currentUser = loggedUser; 
+                        saveToLocalStorageOnly();
+                        
+                        syncSelects();
+                        renderCurrentTab();
+                    }
+                } else {
+                    saveToStorage(); 
+                }
+            }, err => {
+                console.error("Error escuchando Firestore:", err);
+            });
+        }
+
+        function openFirebaseConfigModal() {
+            const modal = document.getElementById('firebaseConfigModal');
+            const stored = localStorage.getItem(FIREBASE_CONFIG_KEY);
+            const cfg = stored ? JSON.parse(stored) : DEFAULT_FIREBASE_CONFIG;
+            
+            if (cfg) {
+                document.getElementById('fbApiKey').value = cfg.apiKey || '';
+                document.getElementById('fbProjectId').value = cfg.projectId || '';
+                document.getElementById('fbAuthDomain').value = cfg.authDomain || '';
+            }
+            if (modal) modal.classList.remove('hidden');
+        }
+
+        function closeFirebaseConfigModal() {
+            const modal = document.getElementById('firebaseConfigModal');
+            if (modal) modal.classList.add('hidden');
+        }
+
+        function saveFirebaseConfig(e) {
+            if (e) e.preventDefault();
+            const jsonStr = document.getElementById('fbConfigJson').value.trim();
+            let configObj = null;
+
+            if (jsonStr) {
+                try {
+                    configObj = JSON.parse(jsonStr);
+                } catch(err) {
+                    showToast("Formato JSON no válido.", "danger");
+                    return false;
+                }
+            } else {
+                const apiKey = document.getElementById('fbApiKey').value.trim();
+                const projectId = document.getElementById('fbProjectId').value.trim();
+                const authDomain = document.getElementById('fbAuthDomain').value.trim();
+
+                if (!apiKey || !projectId) {
+                    showToast("Ingresa al menos apiKey y projectId", "danger");
+                    return false;
+                }
+                configObj = { apiKey, projectId, authDomain };
+            }
+
+            localStorage.setItem(FIREBASE_CONFIG_KEY, JSON.stringify(configObj));
+            closeFirebaseConfigModal();
+            initFirebaseIfConfigured();
+            showToast("Configuración de Nube guardada correctamente.");
+            return false;
+        }
+
+        function disconnectFirebase() {
+            localStorage.removeItem(FIREBASE_CONFIG_KEY);
+            if (unsubscribeFirestore) unsubscribeFirestore();
+            isFirebaseActive = false;
+            dbFirebase = null;
+            closeFirebaseConfigModal();
+            initFirebaseIfConfigured();
+            showToast("Nube desconectada. Modo local activo.", "info");
+        }
+
+        function saveToLocalStorageOnly() {
+            localStorage.setItem(DATA_KEY, JSON.stringify(appState));
+        }
+
+        function saveToStorage() {
+            saveToLocalStorageOnly();
+            if (isFirebaseActive && dbFirebase) {
+                const cleanState = JSON.parse(JSON.stringify(appState));
+                cleanState.currentUser = null; 
+
+                dbFirebase.collection("recolector_master").doc("app_state").set({
+                    appState: cleanState,
+                    lastUpdated: new Date().toISOString()
+                }, { merge: true }).catch(err => {
+                    console.error("Error guardando en Firestore:", err);
+                });
+            }
+        }
+
+        function loadFromStorage() {
+            const data = localStorage.getItem(DATA_KEY);
+            if (data) {
+                try {
+                    appState = JSON.parse(data);
+                    if (!appState.users || appState.users.length === 0) appState.users = REAL_INITIAL_DATA.users;
+                    if (!appState.banqueras) appState.banqueras = REAL_INITIAL_DATA.banqueras;
+                    if (!appState.rutas) appState.rutas = REAL_INITIAL_DATA.rutas;
+                    if (!appState.pendientes) appState.pendientes = [];
+                    if (!appState.cuadres) appState.cuadres = [];
+                    if (!appState.tickets) appState.tickets = [];
+                    if (!appState.reportesAjustesManuales) appState.reportesAjustesManuales = [];
+                    if (!appState.logs) appState.logs = [];
+                } catch(e) {
+                    appState = JSON.parse(JSON.stringify(REAL_INITIAL_DATA));
+                }
+            } else {
+                appState = JSON.parse(JSON.stringify(REAL_INITIAL_DATA));
+                saveToStorage();
+            }
+        }
+
+        function renderCurrentTab() {
+            const activeTab = document.querySelector('.tab-content:not(.hidden)')?.id?.replace('sec-', '') || 'dashboard';
+            switchTab(activeTab);
+        }
+
+        function handleLogin(e) {
+            if (e) e.preventDefault();
+            const uInput = document.getElementById('loginUsername');
+            const pInput = document.getElementById('loginPassword');
+            const errDiv = document.getElementById('loginError');
+
+            if (!uInput || !pInput) return false;
+
+            const username = uInput.value.trim().toLowerCase();
+            const password = pInput.value.trim();
+
+            const foundUser = appState.users.find(u => u.username.toLowerCase() === username && u.password === password);
+
+            if (foundUser) {
+                appState.currentUser = foundUser;
+                if (errDiv) errDiv.classList.add('hidden');
+                
+                const overlay = document.getElementById('loginOverlay');
+                if (overlay) overlay.classList.add('hidden');
+
+                updateUserProfileUI();
+                logEvent("Inicio de Sesión", `Usuario ${foundUser.username} accedió como ${foundUser.role}`, "Seguridad");
+                saveToStorage();
+                showToast(`¡Bienvenido/a ${foundUser.nombre}!`);
+                switchTab('dashboard');
+            } else {
+                if (errDiv) {
+                    errDiv.innerText = "Usuario o contraseña incorrectos.";
+                    errDiv.classList.remove('hidden');
+                }
+            }
+            return false;
+        }
+
+        function logout() {
+            if (appState.currentUser) {
+                logEvent("Cierre de Sesión", `Usuario ${appState.currentUser.username} cerró sesión`, "Seguridad");
+            }
+            appState.currentUser = null;
+            saveToStorage();
+
+            const overlay = document.getElementById('loginOverlay');
+            if (overlay) overlay.classList.remove('hidden');
+            
+            const widget = document.getElementById('userProfileWidget');
+            if (widget) widget.classList.add('hidden');
+
+            showToast("Sesión cerrada correctamente", "info");
+        }
+
+        function updateUserProfileUI() {
+            const u = appState.currentUser;
+            const widget = document.getElementById('userProfileWidget');
+            const avatar = document.getElementById('userAvatar');
+            const nameLabel = document.getElementById('userNameLabel');
+            const roleBadge = document.getElementById('userRoleBadge');
+            const navRoleInd = document.getElementById('navRoleIndicator');
+
+            if (!u || !widget) return;
+
+            widget.classList.remove('hidden');
+            if (nameLabel) nameLabel.innerText = u.nombre;
+            if (roleBadge) roleBadge.innerText = u.role;
+            if (navRoleInd) navRoleInd.innerText = u.role;
+
+            if (avatar) {
+                const initials = u.nombre.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase();
+                avatar.innerText = initials || 'US';
+            }
+        }
+
+        function getLocalTodayDate() {
+            const local = new Date();
+            const offset = local.getTimezoneOffset();
+            const localDate = new Date(local.getTime() - (offset * 60 * 1000));
+            return localDate.toISOString().split('T')[0];
+        }
+
+        function formatDateShort(dateStr) {
+            if (!dateStr) return '';
+            const parts = dateStr.split('-');
+            if (parts.length < 3) return dateStr;
+            return `${parts[2]}/${parts[1]}/${parts[0].slice(-2)}`;
+        }
+
+        function padLine(label, value, totalLength = 32) {
+            const labelStr = String(label);
+            const valStr = String(value);
+            const dotsCount = Math.max(2, totalLength - labelStr.length - valStr.length);
+            return labelStr + ".".repeat(dotsCount) + valStr;
+        }
+
+        function showToast(message, type = "success") {
+            const container = document.getElementById('toastContainer');
+            if (!container) return;
+            const toast = document.createElement('div');
+            
+            let bgClass = "bg-emerald-600";
+            let iconClass = "fa-circle-check";
+            if (type === "danger") {
+                bgClass = "bg-rose-600";
+                iconClass = "fa-triangle-exclamation";
+            } else if (type === "info") {
+                bgClass = "bg-blue-600";
+                iconClass = "fa-circle-info";
+            }
+
+            toast.className = `${bgClass} text-white px-4 py-3 rounded-xl shadow-2xl flex items-center space-x-3 pointer-events-auto transform translate-y-2 opacity-0 transition-all duration-300 max-w-sm`;
+            toast.innerHTML = `
+                <i class="fa-solid ${iconClass} text-lg"></i>
+                <div class="flex-1 text-xs font-bold">${message}</div>
+                <button class="text-white hover:text-slate-200 ml-2" onclick="this.parentElement.remove()">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+            `;
+
+            container.appendChild(toast);
+            setTimeout(() => toast.classList.remove('translate-y-2', 'opacity-0'), 10);
+            setTimeout(() => {
+                toast.classList.add('translate-y-2', 'opacity-0');
+                setTimeout(() => toast.remove(), 300);
+            }, 4000);
+        }
+
+        function logEvent(accion, detalle, categoria = "General") {
+            const u = appState.currentUser || { username: "Sistema", role: "Admin" };
+            const now = new Date();
+            const timeStr = `${now.toLocaleDateString('es-DO')} ${now.toLocaleTimeString('es-DO')}`;
+
+            if (!appState.logs) appState.logs = [];
+
+            appState.logs.unshift({
+                id: "log_" + Date.now(),
+                timestamp: timeStr,
+                username: u.username,
+                role: u.role,
+                categoria,
+                accion,
+                detalle
+            });
+
+            if (appState.logs.length > 300) appState.logs.pop();
+        }
+
+        function switchTab(tabId) {
+            document.querySelectorAll('.tab-content').forEach(el => el.classList.add('hidden'));
+            const sec = document.getElementById(`sec-${tabId}`);
+            if (sec) sec.classList.remove('hidden');
+
+            document.querySelectorAll('.nav-btn').forEach(btn => {
+                btn.classList.remove('bg-primary-50', 'text-primary-700', 'border-r-4', 'border-primary-600');
+                btn.classList.add('text-slate-600', 'hover:bg-slate-100');
+                const icon = btn.querySelector('i');
+                if (icon) {
+                    icon.classList.remove('text-primary-600');
+                    icon.classList.add('text-slate-400');
+                }
+            });
+
+            const activeNavBtn = document.getElementById(`btn-${tabId}`);
+            if (activeNavBtn) {
+                activeNavBtn.classList.add('bg-primary-50', 'text-primary-700', 'border-r-4', 'border-primary-600');
+                activeNavBtn.classList.remove('text-slate-600', 'hover:bg-slate-100');
+                const icon = activeNavBtn.querySelector('i');
+                if (icon) {
+                    icon.classList.remove('text-slate-400');
+                    icon.classList.add('text-primary-600');
+                }
+            }
+
+            syncSelects();
+
+            if (tabId === 'dashboard') renderDashboard();
+            if (tabId === 'reportes') renderReportesConsolidados();
+            if (tabId === 'usuarios') renderUsuarios();
+            if (tabId === 'bitacora') renderLogs();
+        }
+
+        function syncSelects() {
+            const repSelect = document.getElementById('reporteRutaSelect');
+            const cuadreRouteSelect = document.getElementById('cuadreRutaFiltro');
+            const shareRouteSelect = document.getElementById('shareRutaSelect');
+            const uRutaSelect = document.getElementById('uRuta');
+            const uBanqueraSelect = document.getElementById('uBanqueraId');
+            const historyRutaSelect = document.getElementById('cuadreHistoryRutaFilter');
+
+            if (repSelect) repSelect.innerHTML = '<option value="todos">Todas las Rutas</option>';
+            if (cuadreRouteSelect) cuadreRouteSelect.innerHTML = '<option value="">-- Seleccionar Ruta --</option>';
+            if (shareRouteSelect) shareRouteSelect.innerHTML = '';
+            if (uRutaSelect) uRutaSelect.innerHTML = '<option value="">Todas las Rutas</option>';
+            if (uBanqueraSelect) uBanqueraSelect.innerHTML = '<option value="">Ninguna</option>';
+            if (historyRutaSelect) historyRutaSelect.innerHTML = '<option value="todos">Todas las Rutas</option>';
+
+            appState.rutas.forEach(r => {
+                if (repSelect) repSelect.add(new Option(r.nombre, r.nombre));
+                if (cuadreRouteSelect) cuadreRouteSelect.add(new Option(r.nombre, r.nombre));
+                if (shareRouteSelect) shareRouteSelect.add(new Option(r.nombre, r.nombre));
+                if (uRutaSelect) uRutaSelect.add(new Option(r.nombre, r.nombre));
+                if (historyRutaSelect) historyRutaSelect.add(new Option(r.nombre, r.nombre));
+            });
+
+            appState.banqueras.forEach(b => {
+                if (uBanqueraSelect) uBanqueraSelect.add(new Option(`${b.nombre} (${b.usuario})`, b.id));
+            });
+        }
+
+        function renderReportesConsolidados() {
+            const repRutaSelect = document.getElementById('reporteRutaSelect');
+            const desdeInput = document.getElementById('reporteFechaDesde');
+            const hastaInput = document.getElementById('reporteFechaHasta');
+            const previewEfectivo = document.getElementById('reportePreviewEfectivoText');
+            const previewPendientes = document.getElementById('reportePreviewPendientesText');
+            const ajustesListaContainer = document.getElementById('reporteAjustesListaContainer');
+            const rutaBadge = document.getElementById('reporteRutaBadge');
+
+            if (!repRutaSelect || !previewEfectivo || !previewPendientes) return;
+
+            const rName = repRutaSelect.value || 'todos';
+            const desde = desdeInput ? desdeInput.value : getLocalTodayDate();
+            const hasta = hastaInput ? hastaInput.value : getLocalTodayDate();
+
+            if (rutaBadge) rutaBadge.innerText = rName === 'todos' ? 'Todas las Rutas' : rName;
+
+            if (ajustesListaContainer) {
+                ajustesListaContainer.innerHTML = '';
+                const activeAjustes = (appState.reportesAjustesManuales || []).filter(a => a.ruta === rName || rName === 'todos');
+                
+                if (activeAjustes.length === 0) {
+                    ajustesListaContainer.innerHTML = '<span class="text-[10px] text-slate-400 italic">No hay ajustes manuales adicionales para esta ruta.</span>';
+                } else {
+                    activeAjustes.forEach(a => {
+                        const isPos = a.tipo === '+';
+                        const badgeColor = isPos ? 'bg-emerald-100 text-emerald-800 border-emerald-300' : 'bg-rose-100 text-rose-800 border-rose-300';
+                        ajustesListaContainer.innerHTML += `
+                            <div class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold border ${badgeColor} shadow-sm">
+                                <span>${isPos ? '+' : '-'} ${a.concepto}: $${a.monto.toLocaleString('es-DO')}</span>
+                                <button type="button" onclick="removeReporteAjusteManual('${a.id}')" class="hover:text-rose-600 ml-1">
+                                    <i class="fa-solid fa-xmark"></i>
+                                </button>
+                            </div>
+                        `;
+                    });
+                }
+            }
+
+            const routeCuadres = appState.cuadres.filter(c => {
+                const b = appState.banqueras.find(item => item.id === c.banqueraId);
+                const matchesRoute = rName === 'todos' || (b && b.ruta === rName);
+                const matchesDate = !desde || !hasta || (c.fechaHasta >= desde && c.fechaDesde <= hasta);
+                return matchesRoute && matchesDate;
+            });
+
+            const fDesdeStr = formatDateShort(desde);
+            const fHastaStr = formatDateShort(hasta);
+            const dateRangeText = fDesdeStr === fHastaStr ? fDesdeStr : `${fDesdeStr} al ${fHastaStr}`;
+            const titleRutaText = rName === 'todos' ? 'Todas las Rutas' : rName;
+
+            let textEfectivo = `*CUADRE: ${titleRutaText} ... ${dateRangeText}*\n\n`;
+            textEfectivo += `*Positivos*\n\n`;
+
+            let totalPositivos = 0;
+            let totalNegativos = 0;
+
+            routeCuadres.forEach(c => {
+                const b = appState.banqueras.find(item => item.id === c.banqueraId);
+                const bName = b ? b.nombre : 'Banquera';
+                const bCode = b ? b.usuario : '';
+
+                const montoPositivo = (c.recogidoMensajero && c.recogidoMensajero > 0) 
+                    ? c.recogidoMensajero 
+                    : (c.balanceFinal > 0 && !c.visitada ? c.balanceFinal : 0);
+
+                if (montoPositivo > 0) {
+                    textEfectivo += padLine(`${bName} ${bCode}`, montoPositivo.toLocaleString('es-DO', {minimumFractionDigits: 0, maximumFractionDigits: 0})) + "\n";
+                    totalPositivos += montoPositivo;
+                }
+            });
+
+            const manualesPos = (appState.reportesAjustesManuales || []).filter(a => (a.ruta === rName || rName === 'todos') && a.tipo === '+');
+            manualesPos.forEach(a => {
+                textEfectivo += padLine(`${a.concepto}`, a.monto.toLocaleString('es-DO', {minimumFractionDigits: 0, maximumFractionDigits: 0})) + "\n";
+                totalPositivos += a.monto;
+            });
+
+            textEfectivo += `\n` + padLine("Total Positivos", totalPositivos.toLocaleString('es-DO', {minimumFractionDigits: 0, maximumFractionDigits: 0})) + "\n\n";
+
+            textEfectivo += `*Negativos*\n\n`;
+
+            routeCuadres.forEach(c => {
+                const b = appState.banqueras.find(item => item.id === c.banqueraId);
+                const bName = b ? b.nombre : 'Banquera';
+                const bCode = b ? b.usuario : '';
+                
+                const montoNegativo = (c.recogidoMensajero && c.recogidoMensajero < 0) 
+                    ? Math.abs(c.recogidoMensajero)
+                    : (c.balanceFinal < 0 ? Math.abs(c.balanceFinal) : 0);
+
+                if (montoNegativo > 0) {
+                    textEfectivo += padLine(`${bName} ${bCode}`, `-${montoNegativo.toLocaleString('es-DO', {minimumFractionDigits: 0, maximumFractionDigits: 0})}`) + "\n";
+                    totalNegativos += montoNegativo;
+                }
+            });
+
+            const manualesNeg = (appState.reportesAjustesManuales || []).filter(a => (a.ruta === rName || rName === 'todos') && a.tipo === '-');
+            manualesNeg.forEach(a => {
+                textEfectivo += padLine(`${a.concepto}`, `-${a.monto.toLocaleString('es-DO', {minimumFractionDigits: 0, maximumFractionDigits: 0})}`) + "\n";
+                totalNegativos += a.monto;
+            });
+
+            const quedanNeto = totalPositivos - totalNegativos;
+            const labelNeto = quedanNeto < 0 ? "*DARLE*" : "*Quedan Neto*";
+
+            textEfectivo += `\n${padLine(labelNeto, quedanNeto.toLocaleString('es-DO', {minimumFractionDigits: 0, maximumFractionDigits: 0}))}\n`;
+            textEfectivo += `=======================================`;
+
+            previewEfectivo.innerText = textEfectivo;
+
+            let textPendientes = `*Pendientes ... ${dateRangeText}*\n\n`;
+            textPendientes += `*Pendientes*\n\n`;
+
+            const routeBanqueras = appState.banqueras.filter(b => (rName === 'todos' || b.ruta === rName) && b.estado === 'Activa');
+            
+            let countPendientes = 0;
+            routeBanqueras.forEach(b => {
+                const p = appState.pendientes.find(item => item.banqueraId === b.id && item.montoRestante !== 0 && item.categoria !== "Entrega");
+                const cToday = appState.cuadres.find(c => c.banqueraId === b.id && c.fechaHasta >= desde && c.fechaDesde <= hasta);
+
+                if (p && p.montoRestante !== 0) {
+                    textPendientes += padLine(`${b.nombre} ${b.usuario}`, p.montoRestante.toLocaleString('es-DO', {minimumFractionDigits: 0, maximumFractionDigits: 0})) + "\n";
+                    countPendientes++;
+                } else if (cToday) {
+                    const resta = cToday.balanceFinal - (cToday.recogidoMensajero || 0);
+                    if (resta !== 0) {
+                        textPendientes += padLine(`${b.nombre} ${b.usuario}`, resta.toLocaleString('es-DO', {minimumFractionDigits: 0, maximumFractionDigits: 0})) + "\n";
+                        countPendientes++;
+                    }
+                }
+            });
+
+            if (countPendientes === 0) textPendientes += `(Sin pendientes registrados)\n`;
+
+            textPendientes += `\n*Perdidas*\n\n`;
+
+            let countPerdidas = 0;
+            routeBanqueras.forEach(b => {
+                const cToday = appState.cuadres.find(c => c.banqueraId === b.id && c.fechaHasta >= desde && c.fechaDesde <= hasta);
+                if (cToday && cToday.prestoMensajero && cToday.prestoMensajero !== 0) {
+                    textPendientes += padLine(`${b.nombre} ${b.usuario}`, cToday.prestoMensajero.toLocaleString('es-DO', {minimumFractionDigits: 0, maximumFractionDigits: 0})) + "\n";
+                    countPerdidas++;
+                }
+            });
+
+            manualesNeg.forEach(a => {
+                let cleanConcept = a.concepto;
+                textPendientes += padLine(`${cleanConcept}`, a.monto.toLocaleString('es-DO', {minimumFractionDigits: 0, maximumFractionDigits: 0})) + "\n";
+                countPerdidas++;
+            });
+
+            if (countPerdidas === 0) textPendientes += `(Sin pérdidas hoy)\n`;
+
+            previewPendientes.innerText = textPendientes;
+        }
+
+        function addReporteAjusteManual(e) {
+            if (e) e.preventDefault();
+            const repSelect = document.getElementById('reporteRutaSelect');
+            const cInput = document.getElementById('repAjusteConcepto');
+            const mInput = document.getElementById('repAjusteMonto');
+            const tSelect = document.getElementById('repAjusteTipo');
+
+            if (!cInput || !mInput || !tSelect || !repSelect) return false;
+
+            const concepto = cInput.value.trim();
+            const monto = parseFloat(mInput.value || 0);
+            const tipo = tSelect.value;
+            const ruta = repSelect.value;
+
+            if (!concepto || monto <= 0) {
+                showToast("Ingresa un concepto y un monto mayor a cero", "danger");
+                return false;
+            }
+
+            if (!appState.reportesAjustesManuales) appState.reportesAjustesManuales = [];
+
+            appState.reportesAjustesManuales.push({
+                id: "adj_" + Date.now(),
+                ruta,
+                concepto,
+                monto,
+                tipo
+            });
+
+            logEvent("Ajuste Manual Reporte", `${tipo}${monto} para ${concepto} (${ruta})`, "Reportes");
+            saveToStorage();
+            cInput.value = '';
+            mInput.value = '';
+            renderReportesConsolidados();
+            showToast("Ajuste manual agregado");
+            return false;
+        }
+
+        function removeReporteAjusteManual(id) {
+            if (!appState.reportesAjustesManuales) return;
+            appState.reportesAjustesManuales = appState.reportesAjustesManuales.filter(a => a.id !== id);
+            saveToStorage();
+            renderReportesConsolidados();
+            showToast("Ajuste removido", "info");
+        }
+
+        function copyTerminalReport(elementId) {
+            const el = document.getElementById(elementId);
+            if (!el) return;
+
+            const temp = document.createElement('textarea');
+            temp.value = el.innerText;
+            document.body.appendChild(temp);
+            temp.select();
+            document.execCommand('copy');
+            document.body.removeChild(temp);
+            showToast("Reporte copiado al portapapeles");
+        }
+
+        function shareSingleReportWA(type) {
+            const targetId = type === 'efectivo' ? 'reportePreviewEfectivoText' : 'reportePreviewPendientesText';
+            const el = document.getElementById(targetId);
+            if (!el) return;
+
+            const waUrl = `https://api.whatsapp.com/send?text=${encodeURIComponent(el.innerText)}`;
+            window.open(waUrl, '_blank');
+        }
+
+        function shareFullConsolidatedWA() {
+            const ef = document.getElementById('reportePreviewEfectivoText')?.innerText || '';
+            const pen = document.getElementById('reportePreviewPendientesText')?.innerText || '';
+
+            const fullMsg = `${ef}\n\n---------------------------------------\n\n${pen}`;
+            const waUrl = `https://api.whatsapp.com/send?text=${encodeURIComponent(fullMsg)}`;
+            window.open(waUrl, '_blank');
+        }
+
+        function setResultadoMode(mode) {
+            appState.cuadreModeResultado = mode;
+            const btnGana = document.getElementById('btnModeGana');
+            const btnPierde = document.getElementById('btnModePierde');
+            const input = document.getElementById('cuadreResultadoMonto');
+
+            if (mode === 'gana') {
+                if (btnGana) {
+                    btnGana.className = "py-2.5 px-3 rounded-xl border text-xs font-black transition flex items-center justify-center gap-1.5 shadow-sm bg-emerald-600 text-white border-emerald-600";
+                }
+                if (btnPierde) {
+                    btnPierde.className = "py-2.5 px-3 rounded-xl border text-xs font-black transition flex items-center justify-center gap-1.5 shadow-sm bg-white text-slate-600 border-slate-300 hover:bg-rose-50 hover:text-rose-700";
+                }
+                if (input) {
+                    input.className = "block w-full rounded-xl border-2 border-emerald-500 py-2.5 px-3.5 text-base font-mono font-black text-slate-900 bg-slate-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500";
+                }
+            } else {
+                if (btnPierde) {
+                    btnPierde.className = "py-2.5 px-3 rounded-xl border text-xs font-black transition flex items-center justify-center gap-1.5 shadow-sm bg-rose-600 text-white border-rose-600";
+                }
+                if (btnGana) {
+                    btnGana.className = "py-2.5 px-3 rounded-xl border text-xs font-black transition flex items-center justify-center gap-1.5 shadow-sm bg-white text-slate-600 border-slate-300 hover:bg-emerald-50 hover:text-emerald-700";
+                }
+                if (input) {
+                    input.className = "block w-full rounded-xl border-2 border-rose-500 py-2.5 px-3.5 text-base font-mono font-black text-slate-900 bg-slate-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-rose-500";
+                }
+            }
+            liveCalculateCuadre();
+        }
+
+        function handleResultadoAmountInput() {
+            liveCalculateCuadre();
+        }
+
+        function addCuadreConcepto(tipo) {
+            const labelInput = document.getElementById('manualConceptLabel');
+            const montoInput = document.getElementById('manualConceptMonto');
+
+            if (!labelInput || !montoInput) return;
+
+            const concepto = labelInput.value.trim();
+            const monto = parseFloat(montoInput.value || 0);
+
+            if (!concepto || monto <= 0) {
+                showToast("Escribe un concepto y un monto mayor a cero", "danger");
+                return;
+            }
+
+            if (!appState.cuadreConceptosManuales) appState.cuadreConceptosManuales = [];
+
+            appState.cuadreConceptosManuales.push({
+                id: "c_item_" + Date.now(),
+                concepto,
+                monto,
+                tipo
+            });
+
+            labelInput.value = '';
+            montoInput.value = '';
+            renderCuadreConceptosList();
+            liveCalculateCuadre();
+        }
+
+        function removeCuadreConcepto(id) {
+            if (!appState.cuadreConceptosManuales) return;
+            appState.cuadreConceptosManuales = appState.cuadreConceptosManuales.filter(item => item.id !== id);
+            renderCuadreConceptosList();
+            liveCalculateCuadre();
+        }
+
+        function renderCuadreConceptosList() {
+            const container = document.getElementById('manualConceptsList');
+            if (!container) return;
+
+            container.innerHTML = '';
+            const list = appState.cuadreConceptosManuales || [];
+
+            if (list.length === 0) {
+                container.innerHTML = '<span class="text-[10px] text-slate-400 italic">Sin conceptos agregados.</span>';
+                return;
+            }
+
+            list.forEach(item => {
+                const isPos = item.tipo === '+';
+                const badgeBg = isPos ? 'bg-emerald-100 text-emerald-800 border-emerald-300' : 'bg-rose-100 text-rose-800 border-rose-300';
+                
+                container.innerHTML += `
+                    <div class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md text-xs font-bold border ${badgeBg} shadow-sm mr-1 mb-1">
+                        <span>${isPos ? '+' : '-'} ${item.concepto}: $${item.monto.toLocaleString('es-DO')}</span>
+                        <button type="button" onclick="removeCuadreConcepto('${item.id}')" class="hover:text-rose-600 ml-1">
+                            <i class="fa-solid fa-xmark"></i>
+                        </button>
+                    </div>
+                `;
+            });
+        }
+
+        function liveCalculateCuadre() {
+            const inputVal = parseFloat(document.getElementById('cuadreResultadoMonto')?.value || 0);
+            const isGana = appState.cuadreModeResultado === 'gana';
+
+            const ventas = isGana ? inputVal : 0;
+            const ganaPierde = !isGana ? inputVal : 0;
+
+            const prestoMensajero = parseFloat(document.getElementById('cuadrePrestoMensajero')?.value || 0);
+            const pendiente = parseFloat(document.getElementById('cuadrePendiente')?.value || 0);
+
+            let conceptosPos = 0;
+            let conceptosNeg = 0;
+
+            (appState.cuadreConceptosManuales || []).forEach(item => {
+                if (item.tipo === '+') conceptosPos += item.monto;
+                else conceptosNeg += item.monto;
+            });
+
+            let balanceFinal = ventas - ganaPierde + pendiente + prestoMensajero + conceptosPos - conceptosNeg;
+
+            const bId = document.getElementById('cuadreBanquera')?.value;
+            let menudoAplicado = 0;
+            if (bId) {
+                const activeDebt = appState.pendientes.find(p => p.banqueraId === bId && p.montoRestante < 0);
+                const menudo = activeDebt ? Math.abs(activeDebt.montoRestante) : 0;
+                const cApply = document.getElementById('cuadreAplicarMenudo');
+                if (menudo > 0 && cApply && cApply.checked) {
+                    menudoAplicado = menudo;
+                    balanceFinal -= menudoAplicado;
+                }
+            }
+
+            const calcVentas = document.getElementById('calcComisionVentas');
+            const calcRecargas = document.getElementById('calcComisionRecargas');
+            const calcSueldo = document.getElementById('calcSueldoNeto');
+            const displayEl = document.getElementById('calcBalanceTotal');
+            const labelEl = document.getElementById('labelBalanceTotal');
+
+            if (calcVentas) calcVentas.innerText = `$${ventas.toFixed(2)}`;
+            if (calcRecargas) calcRecargas.innerText = `-$${(ganaPierde + conceptosNeg).toFixed(2)}`;
+            
+            let textDetalle = `$${pendiente.toFixed(2)}`;
+            if (prestoMensajero > 0) textDetalle += ` | Pérdida Hoy: +$${prestoMensajero.toFixed(2)}`;
+            if (conceptosPos > 0) textDetalle += ` | Extra: +$${conceptosPos.toFixed(2)}`;
+            if (calcSueldo) calcSueldo.innerText = textDetalle;
+
+            if (displayEl && labelEl) {
+                if (balanceFinal < 0) {
+                    labelEl.innerText = "Devolver:";
+                    displayEl.innerText = `-$${Math.abs(balanceFinal).toLocaleString('es-DO', {minimumFractionDigits: 2})}`;
+                    displayEl.className = "text-xl font-black text-rose-400 font-mono";
+                } else {
+                    labelEl.innerText = "Recoger:";
+                    displayEl.innerText = `$${balanceFinal.toLocaleString('es-DO', {minimumFractionDigits: 2})}`;
+                    displayEl.className = "text-xl font-black text-yellow-400 font-mono";
+                }
+            }
+        }
+
+        function saveCuadre(e) {
+            if (e) e.preventDefault();
+            try {
+                const bIdSelect = document.getElementById('cuadreBanquera');
+                if (!bIdSelect) return false;
+                const bId = bIdSelect.value;
+
+                if (!bId) {
+                    showToast("Selecciona una banquera para realizar el cuadre", "danger");
+                    return false;
+                }
+
+                const b = appState.banqueras.find(item => item.id === bId);
+                if (!b) return false;
+
+                const inputVal = parseFloat(document.getElementById('cuadreResultadoMonto')?.value || 0);
+                const isGana = appState.cuadreModeResultado === 'gana';
+
+                const ventas = isGana ? inputVal : 0;
+                const ganaPierde = !isGana ? inputVal : 0;
+
+                const prestoMensajero = parseFloat(document.getElementById('cuadrePrestoMensajero')?.value || 0);
+                const pendiente = parseFloat(document.getElementById('cuadrePendiente')?.value || 0);
+
+                let conceptosPos = 0;
+                let conceptosNeg = 0;
+
+                (appState.cuadreConceptosManuales || []).forEach(item => {
+                    if (item.tipo === '+') conceptosPos += item.monto;
+                    else conceptosNeg += item.monto;
+                });
+
+                let balanceFinal = ventas - ganaPierde + pendiente + prestoMensajero + conceptosPos - conceptosNeg;
+
+                let menudoAplicado = 0;
+                const activeDebt = appState.pendientes.find(p => p.banqueraId === bId && p.montoRestante < 0);
+                const cApply = document.getElementById('cuadreAplicarMenudo');
+                if (activeDebt && cApply && cApply.checked) {
+                    menudoAplicado = Math.abs(activeDebt.montoRestante);
+                    balanceFinal -= menudoAplicado;
+                    activeDebt.montoRestante = 0;
+                }
+
+                appState.pendientes.forEach(p => {
+                    if (p.banqueraId === bId && p.montoRestante > 0 && p.categoria !== "Entrega") {
+                        p.montoRestante = 0;
+                    }
+                });
+
+                const newCuadre = {
+                    id: "c_" + Date.now(),
+                    banqueraId: bId,
+                    fechaDesde: document.getElementById('cuadreFechaDesde').value,
+                    fechaHasta: document.getElementById('cuadreFechaHasta').value,
+                    ventas,
+                    ganaPierde,
+                    prestoMensajero,
+                    pendiente,
+                    conceptosManuales: JSON.parse(JSON.stringify(appState.cuadreConceptosManuales || [])),
+                    menudoAplicado,
+                    recogidoMensajero: 0,
+                    visitada: false,
+                    balanceFinal,
+                    metodoCobro: "efectivo"
+                };
+
+                appState.cuadres.unshift(newCuadre);
+                syncCuadreToPendientes(newCuadre);
+
+                logEvent("Cuadre de Ruta Guardado", `Cuadre para ${b.nombre} (${b.usuario}). Balance: $${balanceFinal}`, "Cuadres y Cobros");
+
+                document.getElementById('cuadreResultadoMonto').value = '';
+                document.getElementById('cuadrePrestoMensajero').value = '';
+                document.getElementById('cuadrePendiente').value = '';
+                appState.cuadreConceptosManuales = [];
+                renderCuadreConceptosList();
+
+                saveToStorage();
+                renderCuadresHistory();
+                renderRutaControlCards();
+                renderDashboard();
+                showToast("Cuadre diario de ruta guardado exitosamente.");
+            } catch (err) {
+                console.error(err);
+                showToast("Error al procesar el cuadre.", "danger");
+            }
+            return false;
+        }
+
+        function triggerDeleteCuadre(id) {
+            customConfirm("¿Deseas anular este cuadre definitivo de la ruta?", () => {
+                const c = appState.cuadres.find(item => item.id === id);
+                if (c) {
+                    logEvent("Cuadre Anulado", `Anulado cuadre ID: ${id}`, "Cuadres y Cobros");
+                    appState.pendientes = appState.pendientes.filter(p => p.cuadreId !== c.id);
+                }
+                appState.cuadres = appState.cuadres.filter(c => c.id !== id);
+                saveToStorage();
+                renderCuadresHistory();
+                renderRutaControlCards();
+                renderDashboard();
+                showToast("Cuadre de ruta anulado", "danger");
+            });
+        }
+
+        function saveRecogido(id) {
+            const inputElement = document.getElementById(`input-recogido-${id}`);
+            const selectMetodo = document.getElementById(`select-metodo-${id}`);
+            if (!inputElement) return;
+
+            const rawVal = inputElement.value.trim();
+            const hasValue = rawVal !== "";
+            const inputVal = hasValue ? parseFloat(rawVal) : 0;
+            const metodoVal = selectMetodo ? selectMetodo.value : 'efectivo';
+            
+            const c = appState.cuadres.find(item => item.id === id);
+            
+            if (c) {
+                c.recogidoMensajero = inputVal;
+                c.metodoCobro = metodoVal;
+                c.visitada = hasValue;
+                
+                const restante = c.balanceFinal - inputVal;
+                const existingIndex = appState.pendientes.findIndex(p => p.cuadreId === c.id);
+
+                if (restante === 0) {
+                    if (existingIndex !== -1) appState.pendientes.splice(existingIndex, 1);
+                } else {
+                    if (existingIndex !== -1) {
+                        appState.pendientes[existingIndex].montoRestante = restante;
+                        appState.pendientes[existingIndex].montoOriginal = c.balanceFinal;
+                    } else {
+                        appState.pendientes.unshift({
+                            id: "p_c_" + c.id,
+                            cuadreId: c.id,
+                            banqueraId: c.banqueraId,
+                            categoria: "Ruta",
+                            montoOriginal: c.balanceFinal,
+                            montoRestante: restante,
+                            notas: restante < 0 ? `Saldo bancario/favor residual` : `Balance residual del cuadre`
+                        });
+                    }
+                }
+
+                logEvent("Cobro Registrado", `Monto: $${inputVal} por ${metodoVal} para cuadre ${c.id}`, "Cuadres y Cobros");
+                saveToStorage();
+                renderCuadresHistory();
+                renderRutaControlCards();
+                renderDashboard();
+                showToast("Cobro actualizado");
+            }
+        }
+
+        function renderCuadresHistory() {
+            const list = document.getElementById('cuadresListContainer');
+            if (!list) return;
+            list.innerHTML = '';
+
+            const selectedRuta = document.getElementById('cuadreHistoryRutaFilter').value;
+            const filteredCuadres = appState.cuadres.filter(c => {
+                if (selectedRuta === 'todos') return true;
+                const b = appState.banqueras.find(item => item.id === c.banqueraId);
+                return b && b.ruta === selectedRuta;
+            });
+
+            if (filteredCuadres.length === 0) {
+                list.innerHTML = '<p class="text-xs text-slate-400 text-center py-4 font-semibold">Sin cuadres registrados para esta ruta.</p>';
+                return;
+            }
+
+            filteredCuadres.forEach(c => {
+                const b = appState.banqueras.find(item => item.id === c.banqueraId);
+                const name = b ? b.nombre : 'Banquera';
+                const code = b ? b.usuario : '';
+                const dateText = c.fechaDesde === c.fechaHasta ? c.fechaDesde : `del ${c.fechaDesde} al ${c.fechaHasta}`;
+
+                const totalEntregar = c.balanceFinal;
+                const recogido = c.recogidoMensajero || 0;
+                const debiendo = totalEntregar - recogido;
+                const isNeg = totalEntregar < 0;
+
+                list.innerHTML += `
+                    <div class="bg-slate-50 border border-slate-200 p-4 rounded-xl space-y-3 shadow-sm">
+                        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-150 pb-2">
+                            <div>
+                                <span class="font-extrabold text-sm text-slate-900">${name} (${code})</span>
+                                <span class="text-[10px] text-slate-400 block font-semibold">${dateText}</span>
+                            </div>
+                            <div class="text-right">
+                                <span class="text-xs font-black ${isNeg ? 'text-rose-600' : 'text-emerald-600'} block font-mono">
+                                    ${isNeg ? 'Devolver' : 'Recoger'}: ${isNeg ? '-' : ''}$${Math.abs(totalEntregar).toLocaleString('es-DO', {minimumFractionDigits: 2})}
+                                </span>
+                            </div>
+                        </div>
+
+                        <div class="flex flex-col sm:flex-row sm:items-center gap-3 bg-white p-3 rounded-lg border border-slate-150 justify-between">
+                            <div class="flex flex-wrap items-center gap-2 text-xs">
+                                <span class="font-bold text-slate-700">Cobrado:</span>
+                                <input type="number" step="0.01" id="input-recogido-${c.id}" value="${c.recogidoMensajero || ''}" placeholder="Monto" class="w-24 rounded border border-slate-300 py-1 px-2 text-xs font-mono font-bold text-slate-800 text-right focus:ring-1 focus:ring-primary-500">
+                                
+                                <select id="select-metodo-${c.id}" class="rounded border border-slate-300 py-1 px-1.5 text-xs font-bold bg-slate-50 text-slate-700 focus:outline-none">
+                                    <option value="efectivo" ${c.metodoCobro === 'efectivo' ? 'selected' : ''}>Efectivo (Mensajero)</option>
+                                    <option value="transferencia" ${c.metodoCobro === 'transferencia' ? 'selected' : ''}>Transferencia</option>
+                                    <option value="deposito" ${c.metodoCobro === 'deposito' ? 'selected' : ''}>Depósito</option>
+                                </select>
+
+                                <button onclick="saveRecogido('${c.id}')" class="px-2.5 py-1 bg-primary-600 hover:bg-primary-700 text-white rounded font-extrabold text-[11px]">
+                                    Aplicar
+                                </button>
+                            </div>
+
+                            <div class="text-right text-xs font-bold text-slate-700 font-mono">
+                                ${debiendo === 0 ? '<span class="text-emerald-600">Completo</span>' : `Por cobrar: $${debiendo.toLocaleString('es-DO')}`}
+                            </div>
+                        </div>
+
+                        <div class="flex items-center justify-between border-t border-slate-200 pt-2 text-xs font-bold">
+                            <div class="flex items-center space-x-1.5">
+                                <button onclick="shareCuadreDirect('${c.id}', false)" class="px-2.5 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-700 rounded-lg flex items-center gap-1 transition">
+                                    <i class="fa-brands fa-whatsapp text-sm"></i> Al Grupo
+                                </button>
+                                <button onclick="shareCuadreDirect('${c.id}', true)" class="px-2.5 py-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 rounded-lg flex items-center gap-1 transition">
+                                    <i class="fa-brands fa-whatsapp text-sm"></i> A Banquera
+                                </button>
+                            </div>
+                            <button onclick="triggerDeleteCuadre('${c.id}')" class="text-rose-600 hover:text-rose-800 p-1 transition">
+                                <i class="fa-solid fa-trash-can mr-1"></i> Eliminar
+                            </button>
+                        </div>
+                    </div>
+                `;
+            });
+        }
+
+        function renderUsuarios() {
+            const tbody = document.getElementById('usuariosTableBody');
+            if (!tbody) return;
+
+            tbody.innerHTML = '';
+            appState.users.forEach(u => {
+                tbody.innerHTML += `
+                    <tr class="hover:bg-slate-50 border-b border-slate-100">
+                        <td class="py-3 px-4 font-bold text-slate-900">${u.nombre}</td>
+                        <td class="py-3 px-4 font-mono font-bold text-xs text-slate-600">${u.username}</td>
+                        <td class="py-3 px-4 font-bold text-xs text-purple-700">${u.role}</td>
+                        <td class="py-3 px-4 text-xs font-medium text-slate-500">${u.ruta || 'Todas'}</td>
+                        <td class="py-3 px-4 text-center">
+                            <div class="flex justify-center space-x-1">
+                                <button onclick="openUsuarioModal('${u.id}')" class="p-1 text-blue-600 hover:text-blue-800"><i class="fa-solid fa-pen-to-square"></i></button>
+                                <button onclick="deleteUsuario('${u.id}')" class="p-1 text-rose-600 hover:text-rose-800"><i class="fa-solid fa-trash-can"></i></button>
+                            </div>
+                        </td>
+                    </tr>
+                `;
+            });
+            const badge = document.getElementById('badgeUsersCount');
+            if (badge) badge.innerText = appState.users.length;
+        }
+
+        function openUsuarioModal(id = null) {
+            syncSelects();
+            const modal = document.getElementById('usuarioModal');
+            if (modal) modal.classList.remove('hidden');
+        }
+
+        function closeUsuarioModal() {
+            const modal = document.getElementById('usuarioModal');
+            if (modal) modal.classList.add('hidden');
+        }
+
+        function saveUsuario(e) {
+            if (e) e.preventDefault();
+            const nom = document.getElementById('uNombre').value.trim();
+            const user = document.getElementById('uUsername').value.trim();
+            const pass = document.getElementById('uPassword').value.trim();
+            const role = document.getElementById('uRole').value;
+
+            if (!nom || !user || !pass) return false;
+
+            appState.users.push({
+                id: "u_" + Date.now(),
+                nombre: nom,
+                username: user,
+                password: pass,
+                role
+            });
+
+            logEvent("Usuario Creado", `Creación de cuenta ${user} con rol ${role}`, "Usuarios y Sistema");
+            saveToStorage();
+            closeUsuarioModal();
+            renderUsuarios();
+            showToast("Usuario guardado con éxito");
+            return false;
+        }
+
+        function deleteUsuario(id) {
+            customConfirm("¿Deseas eliminar este usuario?", () => {
+                appState.users = appState.users.filter(u => u.id !== id);
+                saveToStorage();
+                renderUsuarios();
+                showToast("Usuario eliminado", "danger");
+            });
+        }
+
+        function renderLogs() {
+            const tbody = document.getElementById('logsTableBody');
+            if (!tbody) return;
+
+            const search = document.getElementById('logSearch')?.value.toLowerCase() || '';
+            const cat = document.getElementById('logCategoryFilter')?.value || 'todos';
+
+            tbody.innerHTML = '';
+            const filtered = (appState.logs || []).filter(l => {
+                const matchCat = cat === 'todos' || l.categoria === cat;
+                const matchText = l.username.toLowerCase().includes(search) || l.accion.toLowerCase().includes(search) || l.detalle.toLowerCase().includes(search);
+                return matchCat && matchText;
+            });
+
+            filtered.forEach(l => {
+                tbody.innerHTML += `
+                    <tr class="hover:bg-slate-50 border-b border-slate-100">
+                        <td class="py-2.5 px-4 font-mono text-[10px] text-slate-400">${l.timestamp}</td>
+                        <td class="py-2.5 px-4 font-bold text-slate-800">${l.username} <span class="text-[9px] bg-slate-100 text-slate-600 px-1 rounded font-normal">${l.role}</span></td>
+                        <td class="py-2.5 px-4 font-semibold text-teal-700">${l.categoria}</td>
+                        <td class="py-2.5 px-4 font-bold text-slate-900">${l.accion}</td>
+                        <td class="py-2.5 px-4 text-slate-555 italic">${l.detalle}</td>
+                    </tr>
+                `;
+            });
+
+            const badge = document.getElementById('badgeLogsCount');
+            if (badge) badge.innerText = (appState.logs || []).length;
+        }
+
+        function clearLogs() {
+            customConfirm("¿Deseas vaciar la bitácora de eventos?", () => {
+                appState.logs = [];
+                saveToStorage();
+                renderLogs();
+                showToast("Bitácora limpiada", "info");
+            });
+        }
+
+        function renderDashboard() {
+            let totalRuta = 0, countRuta = 0;
+            let totalViejos = 0;
+            let totalEntregas = 0, countEntregas = 0;
+
+            (appState.pendientes || []).forEach(p => {
+                if (p.categoria === 'Ruta' || p.categoria === 'Nuevo') {
+                    totalRuta += p.montoRestante;
+                    countRuta++;
+                } else if (p.categoria === 'Viejo') {
+                    totalViejos += p.montoRestante;
+                } else if (p.categoria === 'Entrega') {
+                    totalEntregas += p.montoRestante;
+                    countEntregas++;
+                }
+            });
+
+            const kpiRutaSum = document.getElementById('dashKpiRutaSum');
+            const kpiCountRutaSum = document.getElementById('dashKpiCountRutaSum');
+            const kpiViejos = document.getElementById('dashKpiViejos');
+            const kpiEntregas = document.getElementById('dashKpiEntregas');
+            const kpiCountEntregas = document.getElementById('dashKpiCountEntregas');
+            const kpiCarteraTotal = document.getElementById('dashKpiCarteraTotal');
+
+            if (kpiRutaSum) kpiRutaSum.innerText = `$${totalRuta.toLocaleString('es-DO', {minimumFractionDigits: 2})}`;
+            if (kpiCountRutaSum) kpiCountRutaSum.innerText = `${countRuta} de cuadres activos`;
+            if (kpiViejos) kpiViejos.innerText = `$${totalViejos.toLocaleString('es-DO', {minimumFractionDigits: 2})}`;
+            if (kpiEntregas) kpiEntregas.innerText = `$${totalEntregas.toLocaleString('es-DO', {minimumFractionDigits: 2})}`;
+            if (kpiCountEntregas) kpiCountEntregas.innerText = `${countEntregas} validados hoy`;
+
+            const totalCalle = totalRuta + totalViejos;
+            if (kpiCarteraTotal) kpiCarteraTotal.innerText = `$${totalCalle.toLocaleString('es-DO', {minimumFractionDigits: 2})}`;
+        }
+
+        function exportData() {
+            const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(appState, null, 2));
+            const dlAnchor = document.createElement('a');
+            dlAnchor.setAttribute("href", dataStr);
+            dlAnchor.setAttribute("download", `recolector_banca_backup_${new Date().toISOString().split('T')[0]}.json`);
+            document.body.appendChild(dlAnchor);
+            dlAnchor.click();
+            dlAnchor.remove();
+            showToast("Respaldo exportado con éxito");
+        }
+
+        function triggerImport() {
+            const importInput = document.getElementById('importFile');
+            if (importInput) importInput.click();
+        }
+
+        function importData(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                try {
+                    const imported = JSON.parse(e.target.result);
+                    if (imported.banqueras && imported.rutas) {
+                        appState = imported;
+                        saveToStorage();
+                        syncSelects();
+                        switchTab('dashboard');
+                        showToast("Base de datos restaurada correctamente");
+                    } else {
+                        showToast("El archivo de respaldo no es válido.", "danger");
+                    }
+                } catch(err) {
+                    showToast("Error al leer el archivo JSON.", "danger");
+                }
+            };
+            reader.readAsText(file);
+        }
+
+        window.onload = function () {
+            loadFromStorage();
+            initFirebaseIfConfigured();
+
+            const today = getLocalTodayDate();
+
+            const desdeInput = document.getElementById('reporteFechaDesde');
+            const hastaInput = document.getElementById('reporteFechaHasta');
+            if (desdeInput) desdeInput.value = today;
+            if (hastaInput) hastaInput.value = today;
+
+            const cuadreDesde = document.getElementById('cuadreFechaDesde');
+            const cuadreHasta = document.getElementById('cuadreFechaHasta');
+            if (cuadreDesde) cuadreDesde.value = today;
+            if (cuadreHasta) cuadreHasta.value = today;
+
+            syncSelects();
+            
+            if (!appState.currentUser) {
+                const overlay = document.getElementById('loginOverlay');
+                if (overlay) overlay.classList.remove('hidden');
+            } else {
+                updateUserProfileUI();
+                switchTab('dashboard');
+            }
+        }
+    </script>
+</body>
+</html>
